@@ -1,0 +1,13 @@
+.venv/
+.env
+storage_state.json
+cookies.json
+data/*
+!data/.gitkeep
+outputs/
+*.db
+*.sqlite
+*.sqlite3
+__pycache__/
+.pytest_cache/
+.DS_Store
