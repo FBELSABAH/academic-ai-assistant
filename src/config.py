@@ -25,6 +25,7 @@ class Settings:
     ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///data/academic.db")
     playwright_storage_state: str = os.getenv("PLAYWRIGHT_STORAGE_STATE", "storage_state.json")
+    local_timezone: str = os.getenv("LOCAL_TIMEZONE", "America/Halifax")
 
 
 settings = Settings()

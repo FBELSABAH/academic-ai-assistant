@@ -5,6 +5,7 @@ from datetime import date, datetime, time
 import html
 import logging
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from icalendar import Calendar
 import requests
@@ -32,6 +33,9 @@ class MissingCalendarUrlError(RuntimeError):
 
 class MoodleCalendarImporter:
     """Import Moodle calendar events from a dynamic ICS URL."""
+
+    def __init__(self) -> None:
+        self.local_timezone = ZoneInfo(settings.local_timezone)
 
     def import_from_ics(self) -> CalendarImportResult:
         if not settings.moodle_calendar_ics_url:
@@ -158,7 +162,14 @@ class MoodleCalendarImporter:
         decoded = field.dt if hasattr(field, "dt") else field
 
         if isinstance(decoded, datetime):
-            return decoded.replace(tzinfo=None) if decoded.tzinfo else decoded
+            if decoded.tzinfo:
+                # The database stores naive datetimes, so preserve the correct local
+                # wall-clock time by converting timezone-aware ICS values first.
+                return decoded.astimezone(self.local_timezone).replace(tzinfo=None)
+
+            # If the ICS value is already naive, keep it unchanged rather than
+            # guessing another timezone and shifting the time incorrectly.
+            return decoded
 
         if isinstance(decoded, date):
             return datetime.combine(decoded, time.min)

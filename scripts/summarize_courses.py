@@ -5,10 +5,12 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from src.summarizer import CourseSummarizer
+
 
 def main() -> None:
-    print("Course summarization is not implemented yet.")
-    print("TODO: Send local course data to Ollama and generate actionable summaries.")
+    summarizer = CourseSummarizer()
+    print(summarizer.summarize(), end="")
 
 
 if __name__ == "__main__":
