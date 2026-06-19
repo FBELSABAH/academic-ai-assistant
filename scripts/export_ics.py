@@ -5,10 +5,15 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from src.calendar_exporter import CalendarExporter
+
 
 def main() -> None:
-    print("ICS export is not implemented yet.")
-    print("TODO: Export selected local deadlines and events as a clean calendar feed.")
+    exporter = CalendarExporter()
+    result = exporter.export()
+    print(f"Events exported: {result.events_exported}")
+    print(f"Output path: {result.output_path}")
+    print(f"Skipped events: {result.skipped_events}")
 
 
 if __name__ == "__main__":
