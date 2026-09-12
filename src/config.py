@@ -13,12 +13,12 @@ load_dotenv(PROJECT_ROOT / ".env")
 
 @dataclass(frozen=True)
 class Settings:
-    moodle_home_url: str = os.getenv("MOODLE_HOME_URL", "https://moodle31.upei.ca/")
-    moodle_dashboard_url: str = os.getenv("MOODLE_DASHBOARD_URL", "https://moodle31.upei.ca/my/")
-    moodle_courses_url: str = os.getenv("MOODLE_COURSES_URL", "https://moodle31.upei.ca/my/courses.php")
+    moodle_home_url: str = os.getenv("MOODLE_HOME_URL", "https://moodle.example.edu/")
+    moodle_dashboard_url: str = os.getenv("MOODLE_DASHBOARD_URL", "https://moodle.example.edu/my/")
+    moodle_courses_url: str = os.getenv("MOODLE_COURSES_URL", "https://moodle.example.edu/my/courses.php")
     moodle_calendar_export_url: str = os.getenv(
         "MOODLE_CALENDAR_EXPORT_URL",
-        "https://moodle31.upei.ca/calendar/export.php",
+        "https://moodle.example.edu/calendar/export.php",
     )
     moodle_calendar_ics_url: str = os.getenv("MOODLE_CALENDAR_ICS_URL", "")
     ollama_model: str = os.getenv("OLLAMA_MODEL", "qwen3:8b")
