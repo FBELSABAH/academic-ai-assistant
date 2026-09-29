@@ -7,6 +7,8 @@ from typing import TypedDict
 from playwright.sync_api import Browser, BrowserContext, Page, Playwright, sync_playwright
 
 from src.config import settings
+from src.course_library import atomic_write, authenticated_html
+import json
 
 
 logger = logging.getLogger(__name__)
@@ -49,14 +51,23 @@ def open_moodle_for_manual_login() -> Path:
             logger.info("Opening Moodle home page: %s", settings.moodle_home_url)
             page.goto(settings.moodle_home_url, wait_until="domcontentloaded")
 
-            input(
-                "\nBrowser opened for manual login.\n"
-                "Log into Moodle manually in the browser window.\n"
-                "Do not type your password into the code or terminal.\n"
-                "After the Moodle dashboard loads, return here and press Enter to save the session.\n"
-            )
+            while True:
+                input(
+                    "\nBrowser opened for manual login.\n"
+                    "Use the Microsoft sign-in button if shown. Complete verification in the browser.\n"
+                    "After the Moodle dashboard loads, press Enter here to validate and save the session.\n"
+                )
+                page.goto(settings.moodle_dashboard_url, wait_until="domcontentloaded")
+                try:
+                    page.wait_for_selector('a[href*="/login/logout.php"], [data-region="usermenu"]', timeout=10000)
+                except Exception:
+                    pass
+                if authenticated_html(page.content(), page.url, settings.moodle_home_url):
+                    break
+                print("Moodle login is not complete. Finish sign-in in the browser and try again.")
 
-            context.storage_state(path=str(storage_state_path))
+            atomic_write(storage_state_path, json.dumps(context.storage_state()).encode())
+            storage_state_path.chmod(0o600)
             logger.info("Saved Playwright storage state to %s", storage_state_path)
         finally:
             context.close()

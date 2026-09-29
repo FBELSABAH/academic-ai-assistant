@@ -39,6 +39,71 @@ Moodle calendar ICS importer ────────────┼──> SQLi
 - A richer local interface for reviewing summaries and scrape history.
 - Better scheduling, error reporting, and data-retention controls.
 
+## All Fall 2026 courses in readable folders
+
+Run `./.venv/bin/python scripts/update_courses.py`, or double-click
+`Documents/University Courses/Update Courses.command` in Finder. The script
+uses Moodle's authenticated enrolled-course listing, filters Fall 2026,
+refreshes each course library, and publishes ordinary files under
+`Documents/University Courses/Fall 2026/COURSE CODE - Course Name/`.
+
+`Last Update.txt` reports verified file counts, errors, and excluded links.
+Replaced originals are copied to `Archive/Fall 2026/`. User-created files and
+locally edited downloads are preserved; filename conflicts get numbered copies.
+Technical manifests stay under this app's ignored `data/` directory. The
+updater is on-demand, not scheduled, and does not upload to ChatGPT.
+Large downloads stream to disk, with a 512 MB per-file limit.
+
+## One-course file sync and study library
+
+```bash
+./.venv/bin/python scripts/sync_course.py --login --term F2026
+```
+
+Run this from the project directory in a normal macOS Terminal. Complete Microsoft
+sign-in in the opened browser, return to the terminal, and press Enter. The script
+validates Moodle authentication before saving the session, then selects the first
+visible course matching the term. Use `--list` to inspect available courses or
+`--course-url 'https://YOUR-MOODLE/course/view.php?id=123'` to select one explicitly.
+Remove `--login` on later runs to reuse a valid session. A new sign-in is requested
+when it expires. Never put passwords or verification codes into the terminal.
+
+Each course is saved under `data/library/course-ID/`:
+
+- `files/`: original downloads, with hashes and preserved earlier versions.
+- `pages/`: readable text from supported Moodle pages and assignment instructions.
+- `manifest.json`: source URLs, hashes, verification times, errors, and version history.
+- `INDEX.md`: clickable source list and latest coverage report.
+- `STUDY.md`: a starter prompt for source-grounded study.
+
+The downloader follows read-only course sections, files, folders, pages, book
+chapters, and assignment view pages. It retrieves attached Moodle files without
+submitting work or starting quiz attempts. External links and interactive activities
+are listed as unsupported instead of being silently counted as downloaded.
+Files over 512 MB are reported for separate handling. Scans or image-only documents
+may need visual reading/OCR in the study interface; the downloader preserves originals.
+
+Downloads are verified using SHA-256. Where the server supplies cache validators,
+unchanged files can be reused after a conditional request; otherwise bytes are fetched
+and compared. Interrupted files are never published as complete files. Re-running
+repairs corrupt/missing local copies and preserves replaced versions. Sources not
+verified in the latest run remain available but are marked accordingly.
+
+For studying, open the course folder as a local project, or ask the local assistant
+to read its `INDEX.md` and relevant originals. Ask for filename and page/slide
+citations. This does not upload files into a ChatGPT website Project or create a
+cloud integration. Keep one course per study context.
+
+Validation:
+
+```bash
+./.venv/bin/python -m unittest discover -s tests -v
+```
+
+A successful automated report means traversal completed for supported links.
+Compare the first real course against Moodle to confirm coverage of that site's
+layout, and test a repeat run before relying on it for scheduled collection.
+
 ## Quick start: safe demo
 
 Use the demo workflow first. It needs no Moodle account, real calendar feed, or student records.

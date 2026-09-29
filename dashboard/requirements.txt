@@ -1,0 +1,2 @@
+# Install alongside the existing academic-ai-assistant project dependencies.
+pypdf>=6,<7
