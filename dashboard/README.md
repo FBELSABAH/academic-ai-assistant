@@ -18,4 +18,12 @@ Additional extraction dependency: `pypdf>=6,<7` (already installed in the projec
 
 The service binds to loopback only. Update requests require a same-origin request and a random dashboard token. Do not publish or forward this personal local service to the internet.
 
+## Planner chat
+
+Use **Chat with your planner** for a limited set of local commands: “What do I have this week?”, “Add STAT 2910 quiz this Friday”, “Confirm Concept Deck is due October 8”, or “Update Moodle”. Changes require an explicit preview confirmation; ambiguous requests ask you to resend with the course and exact assessment name. The first version handles dates only, not times, reminders, or general tutoring. “Next Friday” means Friday of next week; the preview always displays the concrete date.
+
+User entries and confirmations persist in ignored `.runtime/chat.sqlite`, survive source refreshes, and are labelled Confirmed by you. If source evidence changes after confirmation, the item is flagged for review without replacing your date. Undo restores the previous user change. Chat text is not sent to an external model; messages in the chat panel reset when the page reloads, while saved edits persist.
+
+The canonical source is now checked into this repository's `dashboard/` directory. The existing Mac launcher uses the deployed copy under Documents/Codex/2026-09-27/can/outputs/dashboard. Deploy source changes with rsync excluding `.runtime`, `__pycache__`, and `.DS_Store`; never copy or commit runtime data.
+
 Implementation reuses the existing project's CourseLibrary, course discovery, and safe exporter. Status is stored locally in `.runtime/sync.json`. Original project tests remain unchanged. Run the dashboard tests using the project's virtual-environment Python with `-m unittest -v test_sync_service` from this folder.

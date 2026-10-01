@@ -6,6 +6,7 @@ import mimetypes
 import secrets
 import os
 from assessments import feed
+from chat_service import ChatService
 from sync_service import SyncService
 
 SYNC = SyncService()
@@ -13,6 +14,7 @@ TOKEN = secrets.token_urlsafe(32)
 PORT = int(os.environ.get('ACADEMIC_DASHBOARD_PORT','8767'))
 
 ROOT = Path(__file__).parent
+CHAT = ChatService(ROOT/'.runtime'/'chat.sqlite')
 LIBRARY = Path('/Users/fbelsabah/Documents/academic-ai-assistant/data/library')
 COURSES = [('27355','CS 2520','Computer Organization & Architecture','Systems, circuits & computation','coral'),('27974','STAT 2910','Probability & Mathematical Statistics I','Probability, distributions & inference','blue'),('27973','STAT 2240','Applied Regression Analysis','Models, relationships & prediction','purple'),('27641','MATH 2420','Combinatorics I','Counting, proofs & graphs','gold'),('27151','AMS 1910','Introduction to Data Science','Data, exploration & discovery','green')]
 
@@ -38,6 +40,22 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.trusted() or self.headers.get('Origin') not in (f'http://127.0.0.1:{PORT}',f'http://localhost:{PORT}') or not secrets.compare_digest(self.headers.get('X-Dashboard-Token',''), TOKEN):
             self.send_error(403); return
+        if self.path=='/api/chat':
+            try:
+                length=int(self.headers.get('Content-Length','0'))
+                if not 0<length<=4096:
+                    self.json_response({'message':'Request too large or empty.'},400);return
+                payload=json.loads(self.rfile.read(length))
+                if not isinstance(payload,dict) or any(not isinstance(v,(str,bool)) for v in payload.values()):
+                    self.json_response({'message':'Invalid chat request.'},400);return
+                result=CHAT.handle(payload,feed(LIBRARY,ROOT/'.runtime'),library())
+                if result.get('action')=='sync':
+                    started=SYNC.start()
+                    result={'message':'Moodle update started. Follow progress in the dashboard.' if started else 'An update is already running.'}
+                self.json_response(result)
+            except Exception:
+                self.json_response({'message':'That request could not complete. Please refresh the dashboard and check the item before retrying.'},500)
+            return
         if self.path not in ('/api/sync', '/api/reconnect'):
             self.send_error(404); return
         started=SYNC.start(reconnect=self.path=='/api/reconnect')
@@ -48,10 +66,10 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(403); return
         u=urlparse(self.path)
         if u.path=='/api/status':
-            self.json_response(dict(SYNC.snapshot(), token=TOKEN, app='academic-assistant', version=5)); return
+            self.json_response(dict(SYNC.snapshot(), token=TOKEN, app='academic-assistant', version=6)); return
         if u.path=='/api/assessments':
             try:
-                self.json_response(feed(LIBRARY, ROOT/'.runtime'))
+                self.json_response(CHAT.overlay(feed(LIBRARY, ROOT/'.runtime')))
             except Exception:
                 self.json_response({'error':'Assessment extraction could not complete. Saved files are safe.'},500)
             return
