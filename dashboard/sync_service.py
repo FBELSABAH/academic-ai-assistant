@@ -3,6 +3,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 import fcntl
 import json
+import hashlib
 from pathlib import Path
 import sys
 import threading
@@ -32,7 +33,7 @@ def changed_files(before, after):
         previous = before.get('files', {}).get(url)
         kind = 'new' if previous is None else 'changed' if previous['sha256'] != item['sha256'] else None
         if kind:
-            changes.append({'kind': kind, 'name': Path(item['path']).name, 'source': url})
+            changes.append({'kind': kind, 'name': Path(item['path']).name, 'source': url, 'sha256': item['sha256']})
     return changes
 
 
@@ -48,6 +49,21 @@ class SyncService:
                 self.state['message'] = 'Previous update status could not be read. You can start a new update.'
         if self.state['status'] in ('running', 'connecting'):
             self.state.update(status='interrupted', message='The app stopped during an update. Completed files are safe; update again to resume.')
+        # Upgrade older status files without discarding the last meaningful run.
+        self.state.setdefault('change_history', [])
+        self._remember_changes(self.state.get('changes', []))
+
+    def _remember_changes(self, changes):
+        """Keep a durable timeline separate from the current run's counters."""
+        history=self.state['change_history']
+        known={item['id'] for item in history}
+        observed=self.state.get('started_at') or self.state.get('finished_at') or now()
+        for change in changes:
+            identity=json.dumps([observed, change.get('course_id'), change.get('source'), change['kind'], change.get('sha256')])
+            change_id=hashlib.sha256(identity.encode()).hexdigest()[:24]
+            if change_id not in known:
+                history.append(dict(change,id=change_id,observed_at=observed))
+                known.add(change_id)
 
     def snapshot(self):
         with self.lock:
@@ -56,13 +72,17 @@ class SyncService:
     def update(self, **fields):
         with self.lock:
             self.state.update(fields)
+            self._remember_changes(fields.get('changes', []))
             atomic_write(self.path, json.dumps(self.state, indent=2).encode())
 
     def start(self, reconnect=False):
         with self.lock:
             if self.state['status'] in ('running', 'connecting'):
                 return False
+            # Persist migrated history before resetting the transient run state.
+            self._remember_changes(self.state.get('changes', []))
             self.state.update(status='connecting' if reconnect else 'running', message='Opening Microsoft sign-in…' if reconnect else 'Checking Moodle sign-in…', started_at=now(), finished_at=None, courses=[], changes=[], total=0, completed=0, error_type=None)
+            atomic_write(self.path, json.dumps(self.state, indent=2).encode())
         threading.Thread(target=self._run, args=(reconnect,), daemon=True).start()
         return True
 

@@ -7,6 +7,32 @@ from sync_service import SyncService, changed_files, LoginRequired
 
 
 class SyncTests(unittest.TestCase):
+    def test_history_survives_empty_sync_restart_and_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'status.json';service=SyncService(path)
+            change={'kind':'new','name':'Lecture.pdf','source':'https://moodle/file','course_id':'1','sha256':'one'}
+            service.update(started_at='2026-10-01T12:00:00Z',changes=[change])
+            service.update(changes=[change])
+            self.assertEqual(len(service.snapshot()['change_history']),1)
+            with patch('sync_service.threading.Thread'):
+                service.start()
+            service.update(changes=[],status='complete')
+            reopened=SyncService(path)
+            self.assertEqual(reopened.snapshot()['changes'],[])
+            self.assertEqual(len(reopened.snapshot()['change_history']),1)
+            reopened.update(status='error',changes=[])
+            self.assertEqual(len(SyncService(path).snapshot()['change_history']),1)
+
+    def test_later_version_adds_history_and_old_summary_migrates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'status.json'
+            change={'kind':'new','name':'Lecture.pdf','source':'https://moodle/file','course_id':'1','sha256':'one'}
+            path.write_text(json.dumps({'status':'complete','started_at':'first','changes':[change]}))
+            service=SyncService(path)
+            self.assertEqual(len(service.snapshot()['change_history']),1)
+            service.update(started_at='second',changes=[dict(change,kind='changed',sha256='two')])
+            self.assertEqual(len(SyncService(path).snapshot()['change_history']),2)
+
     def test_changes_ignore_unverified_and_detect_content_changes(self):
         old={'files':{'a':{'sha256':'1'},'b':{'sha256':'2'}}}
         new={'files':{'a':{'sha256':'1','path':'a','verified_in_last_run':True},'b':{'sha256':'3','path':'b','verified_in_last_run':True},'c':{'sha256':'4','path':'c','verified_in_last_run':False},'d':{'sha256':'5','path':'d','verified_in_last_run':True}}}

@@ -4,6 +4,8 @@ Double-click **Academic Assistant.app** in this folder to open the app at http:/
 
 **Update Moodle** reuses your saved session, checks Fall 2026 courses, and updates the existing library and University Courses folders. Progress, partial failures, and newly added or changed files appear in the dashboard. The app must remain running; no schedule is installed.
 
+**Recent Moodle changes** keeps a persistent history independent of the latest update. Updating twice, finding nothing new, losing connection, or restarting the app does not erase earlier findings. The latest 100 entries are displayed, with the full timeline retained locally. Older summaries already overwritten before this upgrade cannot be recovered automatically. No course history or login data is included in Git checkpoints.
+
 Updates try saved Moodle authentication first. If expired, the assistant opens its persistent browser profile and follows UPEI's Microsoft sign-in link. Complete verification only when Microsoft requires it; the update resumes automatically. Reconnect Moodle also opens this profile without clearing it. Closing the browser or timing out preserves the saved session.
 
 The dedicated browser profile lives under `~/Library/Application Support/Academic Assistant/auth` (owner-only directory), separate from your everyday browser and the Documents folder. Existing saved cookies are migrated without overwriting newer browser cookies. Microsoft controls how long sign-in remains valid; a persistent profile cannot bypass MFA or university policies. No passwords are saved by the app itself. The previous localhost:8766 development server is a separate old instance; use the new app address.

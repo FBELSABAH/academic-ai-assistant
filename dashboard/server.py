@@ -48,7 +48,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(403); return
         u=urlparse(self.path)
         if u.path=='/api/status':
-            self.json_response(dict(SYNC.snapshot(), token=TOKEN, app='academic-assistant', version=3)); return
+            self.json_response(dict(SYNC.snapshot(), token=TOKEN, app='academic-assistant', version=5)); return
         if u.path=='/api/assessments':
             try:
                 self.json_response(feed(LIBRARY, ROOT/'.runtime'))
