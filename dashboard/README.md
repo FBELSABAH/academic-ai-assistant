@@ -35,3 +35,16 @@ User entries and confirmations persist in ignored `.runtime/chat.sqlite`, surviv
 The canonical source is now checked into this repository's `dashboard/` directory. The existing Mac launcher uses the deployed copy under Documents/Codex/2026-09-27/can/outputs/dashboard. Deploy source changes with rsync excluding `.runtime`, `__pycache__`, and `.DS_Store`; never copy or commit runtime data.
 
 Implementation reuses the existing project's CourseLibrary, course discovery, and safe exporter. Status is stored locally in `.runtime/sync.json`. Original project tests remain unchanged. Run the dashboard tests using the project's virtual-environment Python with `-m unittest -v test_sync_service` from this folder.
+
+
+## Google Calendar (version 9)
+
+The dashboard now has an app-owned Desktop OAuth connection. It does not require Codex or ChatGPT to run. Google Calendar API must be enabled and the account added as a test user while the OAuth app is in Testing. Credentials are privately imported into `data/calendar/credentials.json`; tokens and event mappings live alongside it, excluded from Git and written with owner-only permissions. OAuth uses loopback redirect, PKCE, one-use state, and only the `calendar.app.created` scope. Callback codes are omitted from logs.
+
+Reopen Academic Assistant.app, choose Connect Google Calendar, authorize in your regular browser, then Review & enable syncing. Enabling performs the first sync. Later syncs run after a completed/partial Moodle update or a confirmed planner change; Sync calendar now retries independently. There is no recurring scheduler. Keep the Mac awake and app service running until complete.
+
+Only clear, upcoming Fall 2026 assessment dates are eligible. Practice, uncertain, unsupported, repeated assessment names and past dates are held out. Dates are all-day with exclusive next-day ends; exact times are not inferred. Google Calendar default reminders apply. Preview includes held reasons. Deterministic IDs prevent duplicate inserts; reschedules update the same named assessment. Google edits and deletions are preserved. Previously synced items missing or becoming uncertain are retained with a dashboard warning; no automatic deletion. If calendar creation has an unknown outcome, retries stop for manual recovery rather than creating duplicates. Reconnect the same Google account; switching accounts is not supported yet.
+
+Google external OAuth apps in Testing receive refresh tokens that expire after seven days. For long-term use, finish testing then configure production publishing in Google Auth Platform according to Google's requirements. Until then, disconnect and reconnect when authorization expires. Disconnect removes local tokens but preserves Google events; revoke the grant through Google account settings if desired.
+
+Validation: `./.venv/bin/python -m unittest discover -s dashboard -p 'test_*.py'`. The Google transport is simulated in tests. Live authorization and sync require the user's Google consent and remain unverified until that step completes.

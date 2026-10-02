@@ -39,6 +39,7 @@ def changed_files(before, after):
 
 class SyncService:
     def __init__(self, state_path=None):
+        self.on_complete = None
         self.path = state_path or Path(__file__).parent / '.runtime' / 'sync.json'
         self.lock = threading.Lock()
         self.state = {'status': 'idle', 'message': 'Ready to update Moodle.', 'courses': [], 'changes': []}
@@ -100,6 +101,12 @@ class SyncService:
                     self.update(status='busy', message='Another course updater is running. Wait for it to finish, then retry.', finished_at=now())
                     return
                 self._sync(reconnect, state_root)
+                if self.on_complete and self.snapshot()['status'] in ('complete', 'partial'):
+                    # Calendar failures must not turn a successful download into an error.
+                    try:
+                        self.on_complete()
+                    except Exception:
+                        pass
         except LoginRequired:
             self.update(status='login_required', message='Sign-in was not completed. Click Reconnect Moodle and finish verification in the browser.', finished_at=now())
         except Exception as exc:

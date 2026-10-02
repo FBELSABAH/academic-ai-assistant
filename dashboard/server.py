@@ -5,6 +5,8 @@ import json
 import mimetypes
 import secrets
 import os
+import html
+from calendar_service import CalendarService, CalendarError, preview
 from assessments import feed
 from chat_service import ChatService
 from sync_service import SyncService
@@ -17,6 +19,8 @@ ROOT = Path(__file__).parent
 CHAT = ChatService(ROOT/'.runtime'/'chat.sqlite')
 LIBRARY = Path('/Users/fbelsabah/Documents/academic-ai-assistant/data/library')
 COURSES = [('27355','CS 2520','Computer Organization & Architecture','Systems, circuits & computation','coral'),('27974','STAT 2910','Probability & Mathematical Statistics I','Probability, distributions & inference','blue'),('27973','STAT 2240','Applied Regression Analysis','Models, relationships & prediction','purple'),('27641','MATH 2420','Combinatorics I','Counting, proofs & graphs','gold'),('27151','AMS 1910','Introduction to Data Science','Data, exploration & discovery','green')]
+CALENDAR = CalendarService(Path('/Users/fbelsabah/Documents/academic-ai-assistant/data/calendar'), lambda: CHAT.overlay(feed(LIBRARY, ROOT/'.runtime')), PORT)
+SYNC.on_complete = CALENDAR.start
 
 def library():
     result=[]
@@ -30,6 +34,11 @@ def library():
     return result
 
 class Handler(BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        # OAuth authorization codes must never be written to the server log.
+        if urlparse(self.path).path != '/oauth/google/callback':
+            super().log_message(format, *args)
+
     def trusted(self):
         return self.headers.get('Host') in (f'127.0.0.1:{PORT}', f'localhost:{PORT}')
 
@@ -40,6 +49,22 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.trusted() or self.headers.get('Origin') not in (f'http://127.0.0.1:{PORT}',f'http://localhost:{PORT}') or not secrets.compare_digest(self.headers.get('X-Dashboard-Token',''), TOKEN):
             self.send_error(403); return
+        if self.path.startswith('/api/calendar/'):
+            try:
+                action = self.path.rsplit('/',1)[-1]
+                if action == 'connect':
+                    self.json_response({'url': CALENDAR.authorize()}); return
+                elif action == 'enable': CALENDAR.enable()
+                elif action == 'sync': CALENDAR.start()
+                elif action == 'disconnect': CALENDAR.disconnect()
+                else:
+                    self.send_error(404); return
+                self.json_response(CALENDAR.status())
+            except CalendarError as exc:
+                self.json_response({'error': str(exc)},400)
+            except Exception:
+                self.json_response({'error': 'Calendar request failed. Retry from the dashboard.'},500)
+            return
         if self.path=='/api/chat':
             try:
                 length=int(self.headers.get('Content-Length','0'))
@@ -49,6 +74,8 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(payload,dict) or any(not isinstance(v,(str,bool)) for v in payload.values()):
                     self.json_response({'message':'Invalid chat request.'},400);return
                 result=CHAT.handle(payload,feed(LIBRARY,ROOT/'.runtime'),library())
+                if result.get('changed'):
+                    CALENDAR.start()
                 if result.get('action')=='sync':
                     started=SYNC.start()
                     result={'message':'Moodle update started. Follow progress in the dashboard.' if started else 'An update is already running.'}
@@ -65,8 +92,27 @@ class Handler(BaseHTTPRequestHandler):
         if not self.trusted():
             self.send_error(403); return
         u=urlparse(self.path)
+        if u.path=='/oauth/google/callback':
+            try:
+                CALENDAR.callback(parse_qs(u.query))
+                message='Google connected. Return to the dashboard to review dates and enable calendar syncing.'
+                code=200
+            except CalendarError as exc:
+                message=str(exc);code=400
+            except Exception:
+                message='Sign-in could not finish. Return to the dashboard and try again.';code=500
+            payload=('<!doctype html><meta charset="utf-8"><title>Academic Assistant</title><h1>Google Calendar</h1><p>'+html.escape(message)+'</p><a href="/">Return to dashboard</a>').encode()
+            self.send_response(code);self.send_header('Content-Type','text/html; charset=utf-8');self.send_header('Cache-Control','no-store');self.send_header('Referrer-Policy','no-referrer');self.end_headers();self.wfile.write(payload);return
+        if u.path=='/api/calendar':
+            self.json_response(CALENDAR.status()); return
+        if u.path=='/api/calendar/preview':
+            try:
+                self.json_response(preview(CHAT.overlay(feed(LIBRARY, ROOT/'.runtime'))['events']))
+            except Exception:
+                self.json_response({'error':'Could not prepare assessment preview. Try again after updating Moodle.'},500)
+            return
         if u.path=='/api/status':
-            self.json_response(dict(SYNC.snapshot(), token=TOKEN, app='academic-assistant', version=8)); return
+            self.json_response(dict(SYNC.snapshot(), token=TOKEN, app='academic-assistant', version=9)); return
         if u.path=='/api/assessments':
             try:
                 self.json_response(CHAT.overlay(feed(LIBRARY, ROOT/'.runtime')))
@@ -93,6 +139,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_error(403); return
         elif u.path in ('/','/index.html'):
             path=ROOT/'index.html'
+        elif u.path=='/calendar.js':
+            path=ROOT/'calendar.js'
         else:
             self.send_error(404); return
         if not path.is_file():
