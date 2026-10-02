@@ -302,6 +302,8 @@ class CalendarService:
                 if self.refresh_source:
                     source = self.refresh_source()
                     self.state['source_status'] = {k:source.get(k) for k in ('status', 'checked_at', 'message')}
+                    if source.get('status') != 'complete':
+                        raise CalendarError('Moodle calendar could not refresh. No Google dates were changed. Click Update Moodle to reconnect and retry.')
                 self.sync(self.feed_provider()['events'])
                 self.state['result'] = 'attention' if self.state.get('warnings') else 'complete'
         except CalendarError as exc:
@@ -371,16 +373,19 @@ class CalendarService:
             self.save()
         eligible = {identity(e) for e in plan['ready']}
         past = {identity(e) for e in events if e.get('date') and e['date'] < datetime.now(ZoneInfo('America/Halifax')).date().isoformat()}
-        for key in records.keys()-eligible-past:
-            if records[key].get('cancelled'):
-                continue
-            warnings.append('Previously synced item now missing or needs checking; its Google event was kept: '+key.split('|',1)[-1])
         for event in plan['ready']:
             key = identity(event)
-            event_id = hashlib.sha256(('academic-assistant-v1|'+key).encode()).hexdigest()
+            legacy_key = str(event['course_id'])+'|'+event['title'].strip().casefold()
+            # Upgrade a uniquely named document event to its Moodle UID without
+            # creating a second Google event when a structured deadline appears.
+            same_name = [e for e in plan['ready'] if str(e['course_id']) == str(event['course_id']) and e['title'].casefold() == event['title'].casefold()]
+            if event.get('source_uid') and key not in records and legacy_key in records and len(same_name) == 1:
+                records[key] = records.pop(legacy_key)
+                self.save()
+            record = records.get(key)
+            event_id = record['event_id'] if record else hashlib.sha256(('academic-assistant-v1|'+key).encode()).hexdigest()
             body = event_body(event)
             digest = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
-            record = records.get(key)
             code, remote = self.api('GET', base+event_id)
             if code in (404, 410):
                 if record:
@@ -419,6 +424,10 @@ class CalendarService:
                     counts['unchanged'] += 1
             records[key] = {'body': body, 'digest': digest, 'event_id': event_id}
             self.save()
+        for key in records.keys()-eligible-past:
+            if records[key].get('cancelled'):
+                continue
+            warnings.append('Previously synced item now missing or needs checking; its Google event was kept: '+records[key]['body']['summary'])
         self.state.update(counts=counts, warnings=warnings, last_sync=datetime.now(ZoneInfo('America/Halifax')).isoformat(),
                           message=f"{counts['added']} added · {counts['updated']} updated · {counts['unchanged']} unchanged · {counts['held']} held back.")
         self.save()

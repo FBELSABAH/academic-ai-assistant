@@ -145,6 +145,13 @@ class CalendarTests(unittest.TestCase):
         remote['reminders']['overrides'].reverse()
         self.assertEqual(managed_body(body),managed_body(remote))
 
+    def test_document_event_upgrades_to_moodle_without_duplicate(self):
+        self.service.sync([assessment()])
+        self.service.sync([assessment(source_type='moodle_calendar',source_uid='new-uid',start_at='2026-10-20T14:30:00-03:00')])
+        self.assertEqual(len(self.remote),1)
+        self.assertEqual(len(self.service.state['records']),1)
+        self.assertEqual(self.writes[-1][0],'patch')
+
     def test_explicit_cancellation_removes_only_unedited_managed_event(self):
         e=assessment(source_type='moodle_calendar',source_uid='moodle-1')
         self.service.sync([e]);self.service.sync([dict(e,cancelled=True)])
