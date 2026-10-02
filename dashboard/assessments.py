@@ -13,12 +13,14 @@ import threading
 import zipfile
 import xml.etree.ElementTree as ET
 from urllib.parse import urlencode
+from document_reader import read_document, SUPPORTED
 
-VERSION = 3
+VERSION = 5
 LOCK = threading.Lock()
 MONTHS = {m:i+1 for i,m in enumerate(['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'])}
 MON = r'(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sept?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?'
 DATE = re.compile(rf'\b(?:(?P<m1>{MON})\s+(?P<d1>\d{{1,2}})(?:st|nd|rd|th)?|(?P<d2>\d{{1,2}})\s+(?P<m2>{MON}))(?:,?\s+(?P<year>20\d{{2}}))?\b',re.I)
+MONTH_FIRST = re.compile(rf'\b(?P<m1>{MON})\s+(?P<d1>\d{{1,2}})(?:st|nd|rd|th)?(?:,?\s+(?P<year>20\d{{2}}))?\b',re.I)
 ASSESS = re.compile(r'\b(?:quiz(?:zes)?|tests?|mid[- ]?term|exam|assignment|concept\s+deck|presentation)\b',re.I)
 
 
@@ -26,9 +28,18 @@ def normalized(text):
     return re.sub(r'\s+', ' ', text).strip()
 
 
+def date_matches(text):
+    # Prefer "October 20" over the overlapping "1 October" in
+    # "Quiz 1 October 20". Retain genuine day-first dates elsewhere.
+    matches=list(MONTH_FIRST.finditer(text))
+    for m in DATE.finditer(text):
+        if not any(m.start()<other.end() and other.start()<m.end() for other in matches):matches.append(m)
+    return sorted(matches,key=lambda m:m.start())
+
+
 def dates(text, year):
     found=[]
-    for m in DATE.finditer(text):
+    for m in date_matches(text):
         try:
             value=date(int(m['year'] or year), MONTHS[(m['m1'] or m['m2'])[:3].lower()], int(m['d1'] or m['d2']))
             found.append(value.isoformat())
@@ -94,14 +105,16 @@ def candidates(text, year, source_title, moodle=False):
             if re.search(r'(?:midterm|exam|quiz).*?(?:held|scheduled|due|on)$',previous,re.I):
                 context=previous+' '+line;evidence=context
         if ds and (ASSESS.search(context) or is_due):
-            if re.search(r'\b(?:review|solution|sample|practice exam|practice test|available from|opens?)\b',context,re.I) and not is_due:
+            # "Sample Spaces" is a topic, not a sample assessment.
+            if re.search(r'\b(?:review|solutions?|(?:sample|practice|mock|past)\s+(?:exam|test|quiz|midterm)|available from|opens?)\b',context,re.I) and not is_due:
                 continue
             title=title_for(context)
             # Unnumbered document assignment header can precede its due-date line.
             if title=='Assessment date to check':title=title_for(source_title)
             if title=='Assessment date to check':continue
             for d in ds:
-                rows.append({'title':title,'date':d,'evidence':evidence[:1000], 'tentative':tentative or bool(re.search('tentative',source_title,re.I)), 'review':len(ds)>1, 'moodle_due':is_due})
+                date_range=bool(re.search(r'\d\s*(?:–|—|-|to|through)\s*(?:'+MON+r'\s*)?\d',context,re.I))
+                rows.append({'title':title,'date':d,'evidence':evidence[:1000], 'tentative':tentative or bool(re.search('tentative',source_title,re.I)), 'review':len(ds)>1 or date_range or not d.startswith(str(year)), 'moodle_due':is_due})
         if re.search(r'(?:almost every class|announced later|date.*\b(?:TBA|TBD)\b|date will.*announced|deadline.*announced)',line,re.I):
             context=' '.join(lines[max(0,i-2):min(len(lines),i+2)])
             if ASSESS.search(context):
@@ -126,22 +139,25 @@ def build(library, runtime):
                 if not item.get('verified_in_last_run'):
                     coverage.append({'course':cname,'name':item.get('title',url),'status':'Not verified in latest sync'});continue
                 path=(manifest_path.parent/item['path']).resolve()
-                if not path.is_relative_to(manifest_path.parent.resolve()):continue
-                if path.suffix.lower() not in ('.pdf','.docx','.pptx','.md','.txt'):
+                if not path.is_relative_to(manifest_path.parent.resolve()):
+                    coverage.append({'course':cname,'name':item.get('title',url),'status':'Invalid source path; not analyzed'});continue
+                if path.suffix.lower() not in SUPPORTED:
                     coverage.append({'course':cname,'name':path.name,'status':'Data file / unsupported format; not analyzed'});continue
                 try:
                     with path.open('rb') as stream:
                         digest=hashlib.file_digest(stream,'sha256').hexdigest()
+                    if item.get('sha256') and digest!=item['sha256']:
+                        coverage.append({'course':cname,'name':path.name,'status':'Content changed since verified download; update Moodle'});continue
                     cache=cache_dir/f'{VERSION}-{digest}.json'
-                    if cache.exists():pages=json.loads(cache.read_text());cached+=1
+                    document=json.loads(cache.read_text()) if cache.exists() else None
+                    if document and not any('failed' in note or 'unavailable' in note for note in document['notes']):cached+=1
                     else:
-                        pages=extract(path);cache.write_text(json.dumps(pages));fresh+=1
-                    if sum(len(normalized(t)) for _,t in pages)<50:
-                        coverage.append({'course':cname,'name':path.name,'status':'Little readable text; needs visual review / OCR'})
-                    elif any(len(normalized(t))<25 for _,t in pages):
-                        coverage.append({'course':cname,'name':path.name,'status':'Some pages have little text; extracted readable pages, visual review needed'})
-                    else:coverage.append({'course':cname,'name':path.name,'status':'Text analyzed'})
-                    source={'name':path.name,'url':url,'file_url':'/file?'+urlencode({'course':cid,'path':item['path']}),'verified_at':item.get('verified_at')}
+                        document=read_document(path,extract);cache.write_text(json.dumps(document));fresh+=1
+                    pages=document['pages']
+                    notes=list(document['notes'])
+                    if not item.get('sha256'):notes.append('Download checksum unavailable; needs verification.')
+                    coverage.append({'course':cname,'name':path.name,'status':'; '.join(notes) if notes else 'Text analyzed','file_url':'/file?'+urlencode({'course':cid,'path':item['path']})})
+                    source={'name':path.name,'url':url,'file_url':'/file?'+urlencode({'course':cid,'path':item['path']}),'verified_at':item.get('verified_at'),'sha256':digest,'extraction_notes':notes}
                     docs.append((pages,source,item,collection))
                     for page,text in pages:
                         clean=normalized(text)
@@ -158,6 +174,7 @@ def build(library, runtime):
                     if candidate['title']=='Recurring pop quizzes':title=candidate['title']
                     kind='Practice' if practice_evidence and 'assignment' in title.lower() else 'Assessment'
                     ev=dict(candidate,course=cname,course_id=cid,title=title,kind=kind,submission_status='Unknown',sources=[dict(source,page=page,evidence=candidate['evidence'])])
+                    if source['extraction_notes']:ev['review']=True
                     if kind=='Practice':ev['sources'].append(practice_evidence);ev['submission_status']='Not submitted by course policy'
                     if candidate['moodle_due']:ev['review']=True;ev['time_note']='Moodle display time retained in source; account timezone not verified.'
                     events.append(ev)
@@ -174,7 +191,7 @@ def build(library, runtime):
             existing['tentative'] |= ev['tentative'];existing['review'] |= ev['review']
     events=list(grouped.values())
     for ev in events:
-        if ev['date'] and re.search(r'concept deck|assignment \d+|^midterm(?: \d+| exam)$|^quiz \d+',ev['title'],re.I):
+        if ev['date'] and re.search(r'concept deck|assignment \d+|^midterm(?: \d+| exam)$|^quiz \d+|^final exam$',ev['title'],re.I):
             other=sorted({e['date'] for e in events if e['course_id']==ev['course_id'] and e['title']==ev['title'] and e['date'] and e['date']!=ev['date']})
             if other:ev['conflict_dates']=other;ev['review']=True
         ev['id']=hashlib.sha256(f"{ev['course_id']}|{ev['title']}|{ev['date']}".encode()).hexdigest()[:16]
@@ -187,7 +204,20 @@ def build(library, runtime):
 def feed(library, runtime):
     with LOCK:
         paths=sorted(library.glob('course-*/manifest.json'))
-        stamp=hashlib.sha256(('v'+str(VERSION)+''.join(p.read_text() for p in paths)).encode()).hexdigest()
+        # Watch local file changes as well as manifests. Hashes are verified on
+        # rebuild; inexpensive stats avoid reading every PDF on each UI poll.
+        signature=[]
+        for p in paths:
+            raw=p.read_text();signature.append(raw)
+            manifest=json.loads(raw)
+            for collection in ('files','pages'):
+                for item in manifest.get(collection,{}).values():
+                    target=(p.parent/item['path']).resolve()
+                    if not target.is_relative_to(p.parent.resolve()):continue
+                    try:
+                        st=target.stat();signature.append(str((st.st_mtime_ns,st.st_ctime_ns,st.st_size)))
+                    except OSError:signature.append('missing')
+        stamp=hashlib.sha256(('v'+str(VERSION)+''.join(signature)).encode()).hexdigest()
         marker=runtime/'assessment-stamp.txt';output=runtime/'assessments.json'
         if not output.exists() or not marker.exists() or marker.read_text()!=stamp:
             previous=json.loads(output.read_text()) if output.exists() else None

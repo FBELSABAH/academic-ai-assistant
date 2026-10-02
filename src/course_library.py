@@ -300,8 +300,9 @@ class CourseLibrary:
                 text = content.get_text('\n', strip=True)
                 page_id = hashlib.sha256(url.encode()).hexdigest()[:12]
                 path = Path('pages') / f'{page_id}.md'
-                atomic_write(self.root / path, f'# {page_title}\n\nSource: {url}\n\n{text}\n'.encode())
-                self.manifest['pages'][url] = {'title': page_title, 'path': str(path), 'verified_at': now()}
+                page_bytes=f'# {page_title}\n\nSource: {url}\n\n{text}\n'.encode()
+                atomic_write(self.root / path, page_bytes)
+                self.manifest['pages'][url] = {'title': page_title, 'path': str(path), 'verified_at': now(), 'sha256':hashlib.sha256(page_bytes).hexdigest()}
                 self.seen_pages.add(url)
                 queue.extend(self.links(soup, response.url))
             except ExternalResource as exc:

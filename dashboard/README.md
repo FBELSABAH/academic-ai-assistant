@@ -16,6 +16,14 @@ This is conservative rule-based extraction, not exhaustive understanding of ever
 
 Additional extraction dependency: `pypdf>=6,<7` (already installed in the project virtual environment). Reopen the app after this update to replace its idle older service. The bookmark remains http://127.0.0.1:8767.
 
+### Extraction audit update — October 2, 2026
+
+Install the local reader dependencies with the project Python and `pip install -r dashboard/requirements-extraction.txt`. Tesseract is also required for OCR; it is already installed on this Mac. PDF rendering uses the app's own Python dependencies, not a Codex runtime. Low-text PDF pages and image files receive bounded English OCR. OCR-derived events remain review-only. The reader also handles CSV/TSV, HTML, JSON, XLSX cached values and OpenDocument files. Unsupported, encrypted, oversized, unreadable or partially processed documents are explicitly reported in Extraction coverage. XLSX numeric dates and formulas still need review; there is no guarantee that every assessment has been recognized.
+
+The date parser preserves assignments whose topics include “Sample Spaces”, correctly distinguishes “Quiz 1 October 20” from October 1, and flags ranges, historical dates and conflicting final-exam dates. Source hashes are verified before extraction, local file changes invalidate the cache, and subsequent Moodle downloads include page checksums. Older pages without checksums are held for verification until the next download. Failed OCR is retried on the next extraction rebuild. Limits: 100 MB per file, 500 PDF pages, 100 OCR pages per PDF and 20 image frames. Exceeding these limits is reported rather than silently treated as complete.
+
+This is the local extraction foundation. Account-based AI fallback and standalone Google Calendar synchronization are not connected yet. The agreed workflow is user-triggered Update, followed by extraction and calendar sync; no background schedule is installed.
+
 The service binds to loopback only. Update requests require a same-origin request and a random dashboard token. Do not publish or forward this personal local service to the internet.
 
 ## Planner chat

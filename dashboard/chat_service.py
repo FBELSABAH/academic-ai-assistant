@@ -27,8 +27,8 @@ def parse_date(text, today):
         except ValueError:return None,None
     explicit=dates(text,today.year)
     if explicit:
-        from assessments import DATE
-        matches=list(DATE.finditer(text))
+        from assessments import date_matches
+        matches=date_matches(text)
         if len(explicit)!=1:return None,None
         return explicit[0],matches[0].span()
     m=re.search(r'\b(today|tomorrow|(?:(?:this|next)\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b',text,re.I)
