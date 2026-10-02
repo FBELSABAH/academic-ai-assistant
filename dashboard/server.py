@@ -66,7 +66,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(403); return
         u=urlparse(self.path)
         if u.path=='/api/status':
-            self.json_response(dict(SYNC.snapshot(), token=TOKEN, app='academic-assistant', version=6)); return
+            self.json_response(dict(SYNC.snapshot(), token=TOKEN, app='academic-assistant', version=8)); return
         if u.path=='/api/assessments':
             try:
                 self.json_response(CHAT.overlay(feed(LIBRARY, ROOT/'.runtime')))
