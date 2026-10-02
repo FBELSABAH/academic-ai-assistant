@@ -10,6 +10,7 @@ from calendar_service import CalendarService, CalendarError, preview
 from assessments import feed
 from chat_service import ChatService
 from sync_service import SyncService
+import moodle_dates
 
 SYNC = SyncService()
 TOKEN = secrets.token_urlsafe(32)
@@ -19,7 +20,15 @@ ROOT = Path(__file__).parent
 CHAT = ChatService(ROOT/'.runtime'/'chat.sqlite')
 LIBRARY = Path('/Users/fbelsabah/Documents/academic-ai-assistant/data/library')
 COURSES = [('27355','CS 2520','Computer Organization & Architecture','Systems, circuits & computation','coral'),('27974','STAT 2910','Probability & Mathematical Statistics I','Probability, distributions & inference','blue'),('27973','STAT 2240','Applied Regression Analysis','Models, relationships & prediction','purple'),('27641','MATH 2420','Combinatorics I','Counting, proofs & graphs','gold'),('27151','AMS 1910','Introduction to Data Science','Data, exploration & discovery','green')]
-CALENDAR = CalendarService(Path('/Users/fbelsabah/Documents/academic-ai-assistant/data/calendar'), lambda: CHAT.overlay(feed(LIBRARY, ROOT/'.runtime')), PORT)
+CALENDAR_ROOT = Path('/Users/fbelsabah/Documents/academic-ai-assistant/data/calendar')
+MOODLE_DATES = CALENDAR_ROOT/'moodle.json'
+def calendar_feed():
+    documents = CHAT.overlay(feed(LIBRARY, ROOT/'.runtime'))
+    snapshot = json.loads(MOODLE_DATES.read_text()) if MOODLE_DATES.exists() else {}
+    return moodle_dates.merge(documents, snapshot)
+
+CALENDAR = CalendarService(CALENDAR_ROOT, calendar_feed, PORT,
+    refresh_source=lambda: moodle_dates.refresh(MOODLE_DATES, library()))
 SYNC.on_complete = CALENDAR.start
 
 def library():
@@ -107,15 +116,15 @@ class Handler(BaseHTTPRequestHandler):
             self.json_response(CALENDAR.status()); return
         if u.path=='/api/calendar/preview':
             try:
-                self.json_response(preview(CHAT.overlay(feed(LIBRARY, ROOT/'.runtime'))['events']))
+                self.json_response(preview(calendar_feed()['events']))
             except Exception:
                 self.json_response({'error':'Could not prepare assessment preview. Try again after updating Moodle.'},500)
             return
         if u.path=='/api/status':
-            self.json_response(dict(SYNC.snapshot(), token=TOKEN, app='academic-assistant', version=9)); return
+            self.json_response(dict(SYNC.snapshot(), token=TOKEN, app='academic-assistant', version=10)); return
         if u.path=='/api/assessments':
             try:
-                self.json_response(CHAT.overlay(feed(LIBRARY, ROOT/'.runtime')))
+                self.json_response(calendar_feed())
             except Exception:
                 self.json_response({'error':'Assessment extraction could not complete. Saved files are safe.'},500)
             return

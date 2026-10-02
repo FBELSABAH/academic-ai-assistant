@@ -1,5 +1,6 @@
 """App-owned Google OAuth and conservative, click-triggered Calendar sync."""
 import base64
+import fcntl
 from collections import Counter
 from copy import deepcopy
 from datetime import date, datetime, timedelta
@@ -28,6 +29,8 @@ def private_write(path, value):
 
 
 def identity(event):
+    if event.get('source_uid'):
+        return str(event['course_id'])+'|moodle:'+event['source_uid']
     return str(event['course_id']) + '|' + event['title'].strip().casefold()
 
 
@@ -41,7 +44,9 @@ def preview(events, today=None):
             day = date.fromisoformat(event.get('date') or '')
         except ValueError:
             day = None
-        if event.get('kind') == 'Practice':
+        if event.get('cancelled'):
+            reason = 'Cancelled in Moodle'
+        elif event.get('kind') == 'Practice':
             reason = 'Practice material, not a submitted assessment'
         elif day is None:
             reason = 'No definite date'
@@ -64,25 +69,56 @@ def preview(events, today=None):
 
 def event_body(event):
     day = date.fromisoformat(event['date'])
-    description = ['Academic AI Assistant', 'Date only — exact deadline time has not been verified.',
+    timed = event.get('start_at') and event.get('source_type') == 'moodle_calendar'
+    description = ['Academic AI Assistant', 'Exact time from Moodle calendar (America/Halifax).' if timed else 'Date only — exact deadline time has not been verified.',
                    'Confirmed by you.' if event.get('confirmed_by_user') else 'Extracted from saved course materials. Check the source for instructions.']
     for source in event.get('sources', [])[:5]:
         description.append('\n' + source.get('name', '') + (f" · page {source['page']}" if source.get('page') else ''))
         description.append(source.get('evidence', '')[:1000])
         if source.get('url', '').startswith('https://'):
             description.append(source['url'])
-    return {'summary': event['course'] + ' — ' + event['title'],
+    body = {'summary': event['course'] + ' — ' + event.get('display_title', event['title']),
             'description': '\n'.join(description),
             'start': {'date': day.isoformat()}, 'end': {'date': (day + timedelta(days=1)).isoformat()},
-            'reminders': {'useDefault': True}}
+            'reminders': {'useDefault': False, 'overrides': [{'method': 'popup', 'minutes': 900}]}}
+    if timed:
+        start = datetime.fromisoformat(event['start_at'])
+        if start.tzinfo is None:
+            raise CalendarError('A deadline has no verified timezone.')
+        end = datetime.fromisoformat(event['end_at']) if event.get('end_at') else start+timedelta(minutes=1)
+        if end.tzinfo is None or end <= start:
+            raise CalendarError('A deadline has an invalid end time.')
+        body.update(start={'dateTime': start.isoformat(), 'timeZone': 'America/Halifax'},
+                    end={'dateTime': end.isoformat(), 'timeZone': 'America/Halifax'},
+                    reminders={'useDefault': False, 'overrides': [{'method': 'popup', 'minutes': 1440}, {'method': 'popup', 'minutes': 60}]})
+    return body
+
+
+def managed_body(event):
+    """Google may reorder reminders or serialize a timestamp in UTC."""
+    result = {k: deepcopy(event.get(k)) for k in ('summary', 'description', 'start', 'end', 'reminders')}
+    for key in ('start', 'end'):
+        value = result[key] or {}
+        if value.get('dateTime'):
+            instant = datetime.fromisoformat(value['dateTime'].replace('Z', '+00:00'))
+            result[key] = {'dateTime': instant.astimezone(ZoneInfo('UTC')).isoformat()}
+    if result.get('reminders', {}).get('overrides'):
+        result['reminders']['overrides'].sort(key=lambda x:(x['method'], x['minutes']))
+    return result
 
 
 class CalendarError(Exception):
     pass
 
 
+class GoogleError(CalendarError):
+    def __init__(self, message, status):
+        super().__init__(message)
+        self.status = status
+
+
 class CalendarService:
-    def __init__(self, root, feed_provider, port=8767, transport=None):
+    def __init__(self, root, feed_provider, port=8767, transport=None, refresh_source=None):
         self.root = Path(root)
         self.feed_provider = feed_provider
         self.port = port
@@ -90,6 +126,8 @@ class CalendarService:
         self.lock = threading.RLock()
         self.busy = False
         self.pending = None
+        self.queued = False
+        self.refresh_source = refresh_source
         self.state = self.read('state.json', {'enabled': False, 'records': {}, 'message': 'Connect Google Calendar to get started.'})
         self.credentials = self.read('credentials.json', {})
         self.tokens = self.read('tokens.json', {})
@@ -115,7 +153,7 @@ class CalendarService:
 
     def status(self):
         with self.lock:
-            return {k: deepcopy(self.state.get(k)) for k in ('enabled', 'message', 'last_sync', 'counts', 'warnings')} | {
+            return {k: deepcopy(self.state.get(k)) for k in ('enabled', 'message', 'last_sync', 'counts', 'warnings', 'result', 'needs_reconnect', 'source_status')} | {
                 'configured': bool(self.credentials), 'connected': bool(self.tokens.get('refresh_token')),
                 'busy': self.busy, 'calendar_name': CALENDAR_NAME,
                 'calendar_url': ('https://calendar.google.com/calendar/u/0/r?'+urlencode({'cid': self.state['calendar_id']})) if self.state.get('calendar_id') else None}
@@ -142,6 +180,8 @@ class CalendarService:
         try:
             response = self.http.post('https://oauth2.googleapis.com/token', data=values | self.credentials, timeout=20)
             if response.status_code != 200:
+                if response.status_code in (400, 401):
+                    self.state['needs_reconnect'] = True
                 raise CalendarError('Google authorization expired or failed. Connect Google again.')
             result = response.json()
             if not result.get('access_token'):
@@ -165,7 +205,7 @@ class CalendarService:
                 raise CalendarError('Calendar access was not granted. Connect again and allow calendar access.')
             self.tokens = tokens
             private_write(self.root / 'tokens.json', tokens)
-            self.state.update(enabled=False, message='Google connected. Review the preview, then enable syncing.')
+            self.state.update(needs_reconnect=False, message='Google connected. Review the preview, then enable syncing.')
             self.save()
 
     def access_token(self):
@@ -177,21 +217,42 @@ class CalendarService:
         return self.tokens['access_token']
 
     def api(self, method, path, body=None, etag=None):
-        headers = {'Authorization': 'Bearer '+self.access_token()}
-        if etag:
-            headers['If-Match'] = etag
-        try:
-            response = self.http.request(method, 'https://www.googleapis.com/calendar/v3/'+path,
-                                         json=body, headers=headers, timeout=20)
-        except requests.RequestException:
-            raise CalendarError('Google could not be reached. Retry calendar sync; Moodle files are safe.') from None
+        # Calendar creation cannot be safely retried after an unknown outcome.
+        # Event inserts have deterministic IDs; GET/PATCH/DELETE are retry-safe.
+        attempts = 1 if method == 'POST' and path == 'calendars' else 3
+        for attempt in range(attempts):
+            headers = {'Authorization': 'Bearer '+self.access_token()}
+            if etag:
+                headers['If-Match'] = etag
+            try:
+                response = self.http.request(method, 'https://www.googleapis.com/calendar/v3/'+path,
+                                             json=body, headers=headers, timeout=20)
+            except requests.RequestException:
+                if attempt+1 < attempts:
+                    time.sleep(2**attempt)
+                    continue
+                raise CalendarError('Google could not be reached. Retry calendar sync; Moodle files are safe.') from None
+            if response.status_code == 401 and attempt+1 < attempts:
+                self.tokens['expires_at'] = 0
+                continue
+            try:
+                reasons = {e.get('reason') for e in response.json().get('error', {}).get('errors', [])}
+            except (ValueError, AttributeError):
+                reasons = set()
+            transient = response.status_code in (429, 500, 502, 503, 504) or bool(reasons & {'rateLimitExceeded', 'userRateLimitExceeded'})
+            if transient and attempt+1 < attempts:
+                time.sleep(2**attempt)
+                continue
+            break
         if response.status_code in (404, 409, 410, 412):
             return response.status_code, {}
         if response.status_code >= 400:
+            if response.status_code == 401:
+                self.state['needs_reconnect'] = True
             message = {401: 'Google sign-in expired. Connect Google again.',
                        403: 'Google denied calendar access. Check the Calendar API and your Google authorization.',
                        429: 'Google temporarily limited requests. Retry later.'}.get(response.status_code, 'Google Calendar could not finish this request. Retry later.')
-            raise CalendarError(message)
+            raise GoogleError(message, response.status_code)
         return response.status_code, response.json() if response.content else {}
 
     def enable(self):
@@ -214,38 +275,71 @@ class CalendarService:
 
     def start(self):
         with self.lock:
-            if self.busy or not self.state.get('enabled'):
+            if not self.state.get('enabled'):
+                return False
+            if self.busy:
+                self.queued = True
                 return False
             self.busy = True
+            self.state['result'] = 'running'
             self.state['message'] = 'Checking assessment dates and syncing Google Calendar…'
         threading.Thread(target=self._run, daemon=True).start()
         return True
 
     def _run(self):
+        acquired = False
         try:
-            self.sync(self.feed_provider()['events'])
+            self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
+            with (self.root/'sync.lock').open('a') as lockfile:
+                try:
+                    fcntl.flock(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    acquired = True
+                except BlockingIOError:
+                    raise CalendarError('Another calendar sync is running. Retry when it finishes.')
+                self.state = self.read('state.json', self.state)
+                self.tokens = self.read('tokens.json', self.tokens)
+                self.access_token()
+                if self.refresh_source:
+                    source = self.refresh_source()
+                    self.state['source_status'] = {k:source.get(k) for k in ('status', 'checked_at', 'message')}
+                self.sync(self.feed_provider()['events'])
+                self.state['result'] = 'attention' if self.state.get('warnings') else 'complete'
         except CalendarError as exc:
             with self.lock:
                 self.state['message'] = str(exc)
+                self.state['result'] = 'error'
         except Exception:
             with self.lock:
                 self.state['message'] = 'Calendar sync could not finish. Existing events and Moodle files are safe.'
+                self.state['result'] = 'error'
         finally:
             with self.lock:
                 self.busy = False
-                self.save()
+                if acquired:
+                    self.save()
+                again, self.queued = self.queued, False
+            if again:
+                self.start()
 
     def sync(self, events):
         plan = preview(events)
         warnings = []
+        if self.state.get('source_status', {}).get('status') == 'error':
+            warnings.append('Moodle calendar could not refresh. Previous Google events were preserved; click Update Moodle to retry.')
         counts = {'added': 0, 'updated': 0, 'unchanged': 0, 'held': len(plan['held'])}
         if not self.state.get('calendar_id'):
             if self.state.get('creation_pending'):
                 raise CalendarError('Calendar creation had an uncertain result. Check Google Calendar before retrying setup; the app will not create a duplicate.')
             self.state['creation_pending'] = True
             self.save()
-            code, calendar = self.api('POST', 'calendars', {'summary': CALENDAR_NAME, 'timeZone': 'America/Halifax',
-                                                        'description': 'Assessment dates managed by Academic AI Assistant. Exact times are not verified.'})
+            try:
+                code, calendar = self.api('POST', 'calendars', {'summary': CALENDAR_NAME, 'timeZone': 'America/Halifax',
+                                          'description': 'Assessment dates managed by Academic AI Assistant. Moodle calendar times are exact; document-only dates are all-day.'})
+            except GoogleError as exc:
+                if exc.status < 500:
+                    self.state['creation_pending'] = False
+                    self.save()
+                raise
             if code != 200 or not calendar.get('id'):
                 raise CalendarError('Could not create the university calendar. Check Google Calendar before retrying.')
             self.state.update(calendar_id=calendar['id'], creation_pending=False)
@@ -257,9 +351,29 @@ class CalendarService:
         if status != 200:
             raise CalendarError('The saved university calendar is unavailable. Reconnect the original Google account or restore the calendar.')
         records = self.state.setdefault('records', {})
+        cancelled = [e for e in events if e.get('cancelled') and e.get('source_type') == 'moodle_calendar' and not e.get('review')]
+        for event in cancelled:
+            key = identity(event)
+            record = records.get(key)
+            if not record or record.get('cancelled'):
+                continue
+            code, remote = self.api('GET', base+record['event_id'])
+            if code in (404, 410) or remote.get('status') == 'cancelled':
+                record['cancelled'] = True
+            elif managed_body(remote) == managed_body(record['body']) and remote.get('etag'):
+                code, _ = self.api('DELETE', base+record['event_id'], etag=remote['etag'])
+                if code in (200, 204, 404, 410):
+                    record['cancelled'] = True
+                else:
+                    warnings.append('Cancelled assessment changed in Google; check it there: '+event['title'])
+            else:
+                warnings.append('Cancelled in Moodle but edited in Google; left untouched: '+event['title'])
+            self.save()
         eligible = {identity(e) for e in plan['ready']}
         past = {identity(e) for e in events if e.get('date') and e['date'] < datetime.now(ZoneInfo('America/Halifax')).date().isoformat()}
         for key in records.keys()-eligible-past:
+            if records[key].get('cancelled'):
+                continue
             warnings.append('Previously synced item now missing or needs checking; its Google event was kept: '+key.split('|',1)[-1])
         for event in plan['ready']:
             key = identity(event)
@@ -279,7 +393,7 @@ class CalendarService:
                 if code not in (200, 201):
                     raise CalendarError('Could not save a calendar event. Retry to safely resume.')
                 # Verify a recovered event before claiming a timed-out insert succeeded.
-                if any(remote.get(k) != v for k,v in body.items()):
+                if managed_body(remote) != managed_body(body):
                     warnings.append('Existing Google event differs; left untouched: '+event['title'])
                     continue
                 counts['added'] += 1
@@ -287,12 +401,12 @@ class CalendarService:
                 if remote.get('status') == 'cancelled':
                     warnings.append('Cancelled Google event was kept cancelled: '+event['title'])
                     continue
-                managed = {k: remote.get(k) for k in body}
+                managed = managed_body(remote)
                 previous = record.get('body') if record else body
-                if managed != previous:
+                if managed != managed_body(previous) and managed != managed_body(body):
                     warnings.append('Edited in Google; left untouched: '+event['title'])
                     continue
-                if managed != body:
+                if managed != managed_body(body):
                     if not remote.get('etag'):
                         warnings.append('Could not verify Google event version: '+event['title'])
                         continue

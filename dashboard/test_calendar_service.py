@@ -1,12 +1,12 @@
 import json
 from copy import deepcopy
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
-from calendar_service import CalendarService, CalendarError, event_body, preview, SCOPE
+from calendar_service import CalendarService, CalendarError, GoogleError, event_body, managed_body, preview, SCOPE
 
 
 def assessment(**overrides):
@@ -20,9 +20,8 @@ class CalendarTests(unittest.TestCase):
         self.service=CalendarService(Path(self.tmp.name), lambda:{'events':[]})
         self.remote={};self.writes=[]
         self.service.api=self.api
-        self.today=patch('calendar_service.datetime')
-        mocked=self.today.start();mocked.now.return_value.date.return_value=date(2026,10,2)
-        mocked.now.return_value.isoformat.return_value='2026-10-02T12:00:00-03:00'
+        self.today=patch('calendar_service.datetime', wraps=datetime)
+        mocked=self.today.start();mocked.now.return_value=datetime.fromisoformat('2026-10-02T12:00:00-03:00')
 
     def tearDown(self):
         self.today.stop();self.tmp.cleanup()
@@ -40,6 +39,8 @@ class CalendarTests(unittest.TestCase):
         if method=='PATCH':
             self.assertEqual(etag,self.remote[key]['etag'])
             self.remote[key].update(deepcopy(body));self.writes.append(('patch',key))
+        if method=='DELETE':
+            self.remote.pop(key,None);return 204,{}
         return 200,deepcopy(self.remote[key])
 
     def test_filters_uncertain_practice_past_and_repeated(self):
@@ -131,6 +132,43 @@ class CalendarTests(unittest.TestCase):
         with patch.object(self.service,'token_request') as exchange:
             with self.assertRaises(CalendarError):self.service.callback({'state':query['state'],'error':['access_denied']})
             exchange.assert_not_called()
+
+    def test_timed_deadline_has_reminders_and_valid_duration(self):
+        body=event_body(assessment(start_at='2026-11-06T14:30:00-04:00',source_type='moodle_calendar'))
+        self.assertEqual(body['start']['dateTime'],'2026-11-06T14:30:00-04:00')
+        self.assertEqual(body['end']['dateTime'],'2026-11-06T14:31:00-04:00')
+        self.assertEqual([r['minutes'] for r in body['reminders']['overrides']],[1440,60])
+
+    def test_google_timestamp_and_reminder_normalization(self):
+        body=event_body(assessment(start_at='2026-11-06T14:30:00-04:00',source_type='moodle_calendar'))
+        remote=deepcopy(body);remote['start']={'dateTime':'2026-11-06T18:30:00Z'}
+        remote['reminders']['overrides'].reverse()
+        self.assertEqual(managed_body(body),managed_body(remote))
+
+    def test_explicit_cancellation_removes_only_unedited_managed_event(self):
+        e=assessment(source_type='moodle_calendar',source_uid='moodle-1')
+        self.service.sync([e]);self.service.sync([dict(e,cancelled=True)])
+        self.assertFalse(self.remote)
+
+    def test_google_edit_survives_moodle_cancellation(self):
+        e=assessment(source_type='moodle_calendar',source_uid='moodle-1')
+        self.service.sync([e]);next(iter(self.remote.values()))['summary']='My note'
+        self.service.sync([dict(e,cancelled=True)])
+        self.assertEqual(len(self.remote),1)
+
+    def test_definite_create_rejection_allows_retry(self):
+        with patch.object(self.service,'api',side_effect=GoogleError('Not authorized',403)):
+            with self.assertRaises(GoogleError):self.service.sync([assessment()])
+        self.assertFalse(self.service.state['creation_pending'])
+
+    def test_transport_retries_transient_error(self):
+        from unittest.mock import Mock
+        s=CalendarService(Path(self.tmp.name),lambda:{'events':[]},transport=Mock())
+        s.access_token=lambda:'private'
+        s.http.request.side_effect=[Mock(status_code=503,json=lambda:{},content=b'{}'),Mock(status_code=200,json=lambda:{'id':'ok'},content=b'{}')]
+        with patch('calendar_service.time.sleep'):
+            code,result=s.api('GET','calendars/example')
+        self.assertEqual((code,result),(200,{'id':'ok'}));self.assertEqual(s.http.request.call_count,2)
 
 
 if __name__=='__main__':unittest.main()

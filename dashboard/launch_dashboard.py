@@ -16,7 +16,7 @@ def ready():
     try:
         with urlopen(URL+'/api/status', timeout=1) as response:
             data=json.load(response)
-        return data.get('app') == 'academic-assistant' and data.get('version') == 9
+        return data.get('app') == 'academic-assistant' and data.get('version') == 10
     except Exception:
         return False
 
@@ -27,7 +27,7 @@ def main():
         # API identity and its working directory. Never kill an active update.
         try:
             with urlopen(URL+'/api/status',timeout=1) as response:old=json.load(response)
-            if old.get('app')=='academic-assistant' and old.get('version',0)<9:
+            if old.get('app')=='academic-assistant' and old.get('version',0)<10:
                 if old.get('status') in ('running','connecting'):
                     subprocess.run(['/usr/bin/open','-a','Google Chrome',URL],check=True)
                     return 0
