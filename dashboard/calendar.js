@@ -14,6 +14,7 @@ function paintCalendar(){
  ${!s.connected||s.needs_reconnect?`<button class="primary" onclick="calendarAction('connect')" ${!s.configured?'disabled':''}>${s.needs_reconnect?'Reconnect Google':'Connect Google Calendar'}</button>`:!s.enabled?'<button class="primary" onclick="calendarPreview(true)">Review & enable syncing</button>':`<button class="primary" onclick="calendarAction('sync')" ${s.busy?'disabled':''}>Sync calendar now</button>`}
  <button class="textbutton" onclick="calendarPreview(false)">Preview dates</button>
  ${s.calendar_url?`<a class="textbutton" href="${esc(s.calendar_url)}" target="_blank" rel="noopener noreferrer">Open Google Calendar ↗</a>`:''}
+ ${s.connected&&!s.needs_reconnect?`<button class="textbutton" onclick="calendarAction('connect')" ${s.busy?'disabled':''}>Reconnect Google</button>`:''}
  ${s.connected?`<button class="textbutton" onclick="calendarAction('disconnect')" ${s.busy?'disabled':''}>Disconnect</button>`:''}</div>
  ${s.enabled?'<p style="margin-top:12px;font-size:12px">Syncs after you click Update Moodle and after confirmed planner changes. Keep the app running until syncing finishes.</p>':''}
  ${s.last_sync?`<p style="margin-top:8px;font-size:12px">Last calendar sync: ${esc(dateLabel(s.last_sync))}</p>`:''}

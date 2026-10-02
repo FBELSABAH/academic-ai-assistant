@@ -121,7 +121,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.json_response({'error':'Could not prepare assessment preview. Try again after updating Moodle.'},500)
             return
         if u.path=='/api/status':
-            self.json_response(dict(SYNC.snapshot(), token=TOKEN, app='academic-assistant', version=10)); return
+            self.json_response(dict(SYNC.snapshot(), token=TOKEN, app='academic-assistant', version=11)); return
         if u.path=='/api/assessments':
             try:
                 self.json_response(calendar_feed())
