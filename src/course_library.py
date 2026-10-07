@@ -107,6 +107,7 @@ class CourseLibrary:
             raise ValueError('This library belongs to a different Moodle course URL.')
         self.errors, self.unsupported = [], []
         self.seen_files, self.seen_pages = set(), set()
+        self.announcement_forums = set()
         self.counts = {'new': 0, 'updated': 0, 'unchanged': 0}
 
     def fetch(self, url, headers=None):
@@ -174,7 +175,16 @@ class CourseLibrary:
                     yield url, title, 'page'
             elif p.path == '/course/section.php' and set(parse_qs(p.query)) == {'id'}:
                 yield url, title, 'page'
-            elif re.fullmatch(r'/mod/(url|quiz|forum|h5pactivity|scorm|lesson)/view.php', p.path):
+            elif p.path == '/mod/forum/view.php' and set(parse_qs(p.query)) <= {'id', 'page'}:
+                # Only announcement/news forums, not student discussion boards.
+                if base_url in self.announcement_forums or re.search(r'\b(announcements?|news forum|course news)\b', title, re.I):
+                    self.announcement_forums.add(url)
+                    yield url, title, 'announcement_index'
+                else:
+                    self.unsupported.append({'url': url, 'reason': 'Discussion forum; not an identified announcements forum.'})
+            elif p.path == '/mod/forum/discuss.php' and base_url in self.announcement_forums and set(parse_qs(p.query)) <= {'d'}:
+                yield url, title, 'announcement_thread'
+            elif re.fullmatch(r'/mod/(url|quiz|h5pactivity|scorm|lesson)/view.php', p.path):
                 self.unsupported.append({'url': url, 'reason': 'Interactive activity or external-link resource; recorded only.'})
 
     def file_headers(self, url):
@@ -292,6 +302,14 @@ class CourseLibrary:
                     self.manifest['course_name'] = heading.get_text(' ', strip=True) if heading else f'Course {self.course_id}'
                 if soup.select('.errorcode, [data-rel="fatalerror"]'):
                     raise RuntimeError('Moodle returned an error page.')
+                if kind == 'announcement_thread':
+                    from src.announcements import save_posts
+                    save_posts(self, soup, url)
+                    continue
+                if kind == 'announcement_index':
+                    self.announcement_forums.add(response.url)
+                    queue.extend(self.links(soup, response.url))
+                    continue
                 content = soup.select_one('#region-main') or soup.select_one('main') or soup
                 for node in content.select('script, style, nav, form, .submissionstatustable'):
                     node.decompose()

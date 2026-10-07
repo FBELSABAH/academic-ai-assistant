@@ -1,0 +1,6 @@
+{
+  "name": "academic-assistant-frontend-tools",
+  "private": true,
+  "description": "Development-only browser verification; not an application runtime",
+  "devDependencies": { "@playwright/cli": "0.1.22" }
+}

@@ -44,6 +44,8 @@ def preview(events, today=None):
             day = date.fromisoformat(event.get('date') or '')
         except ValueError:
             day = None
+        if event.get('kind') == 'Class' and day and day < today:
+            continue
         if event.get('cancelled'):
             reason = 'Cancelled in Moodle'
         elif event.get('kind') == 'Practice':
@@ -69,9 +71,14 @@ def preview(events, today=None):
 
 def event_body(event):
     day = date.fromisoformat(event['date'])
-    timed = event.get('start_at') and event.get('source_type') == 'moodle_calendar'
+    is_class = event.get('source_type') == 'class_schedule'
+    timed = event.get('start_at') and event.get('source_type') in ('moodle_calendar', 'class_schedule')
     description = ['Academic AI Assistant', 'Exact time from Moodle calendar (America/Halifax).' if timed else 'Date only — exact deadline time has not been verified.',
                    'Confirmed by you.' if event.get('confirmed_by_user') else 'Extracted from saved course materials. Check the source for instructions.']
+    if is_class:
+        if not event.get('end_at'):
+            raise CalendarError('Class end time has not been confirmed.')
+        description = ['Academic AI Assistant', 'Regular class time from your course outline (America/Halifax).', event.get('schedule_note', '')]
     for source in event.get('sources', [])[:5]:
         description.append('\n' + source.get('name', '') + (f" · page {source['page']}" if source.get('page') else ''))
         description.append(source.get('evidence', '')[:1000])
@@ -91,6 +98,9 @@ def event_body(event):
         body.update(start={'dateTime': start.isoformat(), 'timeZone': 'America/Halifax'},
                     end={'dateTime': end.isoformat(), 'timeZone': 'America/Halifax'},
                     reminders={'useDefault': False, 'overrides': [{'method': 'popup', 'minutes': 1440}, {'method': 'popup', 'minutes': 60}]})
+    if is_class:
+        body["location"] = event.get("location", "")
+        body["reminders"] = {"useDefault": False, "overrides": [{"method":"popup", "minutes":15}]}
     return body
 
 
@@ -104,6 +114,8 @@ def managed_body(event):
             result[key] = {'dateTime': instant.astimezone(ZoneInfo('UTC')).isoformat()}
     if result.get('reminders', {}).get('overrides'):
         result['reminders']['overrides'].sort(key=lambda x:(x['method'], x['minutes']))
+    if event.get("location"):
+        result["location"] = event["location"]
     return result
 
 
@@ -297,14 +309,23 @@ class CalendarService:
                 except BlockingIOError:
                     raise CalendarError('Another calendar sync is running. Retry when it finishes.')
                 self.state = self.read('state.json', self.state)
+                self.state.update(result='running', message='Checking sources and syncing classes and deadlines…')
                 self.tokens = self.read('tokens.json', self.tokens)
                 self.access_token()
+                source_failed = False
                 if self.refresh_source:
                     source = self.refresh_source()
                     self.state['source_status'] = {k:source.get(k) for k in ('status', 'checked_at', 'message')}
                     if source.get('status') != 'complete':
+                        source_failed = True
+                events = self.feed_provider()['events']
+                if source_failed:
+                    # Verified local timetable is independent of Moodle's live export.
+                    # Never write assessment dates from an unsuccessful refresh.
+                    events = [e for e in events if e.get('source_type') == 'class_schedule']
+                    if not events:
                         raise CalendarError('Moodle calendar could not refresh. No Google dates were changed. Click Update Moodle to reconnect and retry.')
-                self.sync(self.feed_provider()['events'])
+                self.sync(events)
                 self.state['result'] = 'attention' if self.state.get('warnings') else 'complete'
         except CalendarError as exc:
             with self.lock:

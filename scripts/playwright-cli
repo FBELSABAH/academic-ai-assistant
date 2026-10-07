@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$REPO_ROOT"
+CLI="$REPO_ROOT/tools/frontend/node_modules/.bin/playwright-cli"
+if [ ! -x "$CLI" ]; then
+  echo 'Install local tools: npm --prefix tools/frontend ci --ignore-scripts' >&2
+  exit 1
+fi
+exec "$CLI" "$@"

@@ -52,3 +52,25 @@ Upcoming clear dates only: uncertain, tentative, practice, past, and ambiguous r
 External OAuth apps in Google's Testing mode receive refresh tokens expiring after seven days. Production publishing must be configured in Google Auth Platform for long-term use, subject to Google's requirements. Disconnect removes local tokens but keeps existing Google events. Revoke the grant in Google account settings if desired.
 
 Validation: run dashboard and project unittest suites. Fake transports cover retries, reschedules, duplicate prevention, timezones, cancellations, manual edits, and OAuth checks. Real Google authorization and live sync require user consent; don't treat passing local tests as proof of that connection.
+
+## Calendar page — October 5, 2026
+
+The Calendar sidebar page (`/#calendar`) provides an always-visible local month/agenda preview, course filtering, and source evidence for each eligible deadline. Excluded entries show their reasons separately. Preview works without Google authorization and does not claim to be a live view of Google events. Month navigation and dates use the Halifax calendar. Connection state, last successful sync, source-check time, retry controls, and warnings appear in the connection section below the preview. Disconnect is behind a confirmation. Reconnect and enable syncing on this page when Google authorization is missing.
+
+Verified the live preview, October/November navigation, course filtering, and source details. Run `PYTHONPATH=.. ../.venv/bin/python -m unittest test_calendar_service test_moodle_dates` from dashboard for the calendar backend tests.
+
+## Regular classes — October 5, 2026
+
+Private `data/calendar/classes.json` stores the verified Fall 2026 timetable and supporting file hashes. `class_schedule.py` expands it into individually managed meetings with stable course/date IDs, Halifax-aware times, locations and 15-minute reminders. Holidays and reading week are excluded using the UPEI Registrar calendar; classes end December 9. CS 2520's 14:15 end was confirmed by the user. Meetings are regular timetable slots, not a claim that an in-class test or presentation cannot replace that day's lecture. Labs are not inferred. Source file or manifest changes hold meetings for review. Calendar preview offers classes/assessments filters; the assessment overview stays separate. If live Moodle export fails, only verified class meetings may sync; stale assessment dates are not written. Existing Google edits/deletions remain preserved.
+
+### Announcements (no paid AI)
+
+Update Moodle follows identified Announcements/News forums and discussion pages, saves individual posts with stable IDs, author and posting timestamp where available, and downloads attachments. Announcement changes appear in update history. Other discussion forums and edit/reply actions are not traversed. Missing posts are not assumed cancelled.
+
+Extraction uses local rules and OCR only. Announcement-derived dates and change wording require review; dates are not automatically interpreted by a cloud model. The paid AI checker and its configuration UI have been removed. No API key or AI subscription is required for this workflow.
+
+### Simplified overview
+
+Planner chat UI and its POST endpoint have been removed. Existing saved date corrections are still read to avoid changing previously confirmed calendar entries. The overview now shows one update action, last check time, compact course/file/calendar links, upcoming dates, five recent changes with expandable history, and course files. Update details appear only during updates or when attention is needed. Source coverage and evidence remain available.
+
+The overview heading and three summary cards are restored. The header now has a persistent navigation toggle instead of global search; file search lives within File library. The sidebar animates with the content on desktop, overlays with a backdrop on mobile, remembers its state, supports Escape, prevents focus in collapsed navigation, and respects reduced-motion preferences.

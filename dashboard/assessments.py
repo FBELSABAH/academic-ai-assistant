@@ -15,7 +15,8 @@ import xml.etree.ElementTree as ET
 from urllib.parse import urlencode
 from document_reader import read_document, SUPPORTED
 
-VERSION = 5
+VERSION = 8
+READER_VERSION = 5
 LOCK = threading.Lock()
 MONTHS = {m:i+1 for i,m in enumerate(['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'])}
 MON = r'(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sept?(?:ember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?'
@@ -148,7 +149,7 @@ def build(library, runtime):
                         digest=hashlib.file_digest(stream,'sha256').hexdigest()
                     if item.get('sha256') and digest!=item['sha256']:
                         coverage.append({'course':cname,'name':path.name,'status':'Content changed since verified download; update Moodle'});continue
-                    cache=cache_dir/f'{VERSION}-{digest}.json'
+                    cache=cache_dir/f'{READER_VERSION}-{digest}.json'
                     document=json.loads(cache.read_text()) if cache.exists() else None
                     if document and not any('failed' in note or 'unavailable' in note for note in document['notes']):cached+=1
                     else:
@@ -168,7 +169,12 @@ def build(library, runtime):
                     coverage.append({'course':cname,'name':path.name,'status':f'Could not extract text ({type(exc).__name__})'})
         for pages,source,item,collection in docs:
             for page,text in pages:
-                for candidate in candidates(text,year,item.get('title') or source['name'],collection=='pages'):
+                extracted = candidates(text,year,item.get('title') or source['name'],collection=='pages')
+                announcement = item.get('source_type') == 'announcement'
+                for candidate in extracted:
+                    if announcement or re.search(r'\b(extend\w*|reschedul\w*|postpon\w*|cancel\w*|moved|instead|tomorrow|next\s+\w+|room change)\b', candidate['evidence'], re.I):
+                        candidate['review'] = True
+                        candidate['time_note'] = 'Announcement or change wording: verify interpretation before syncing.'
                     # Normalize matching named assessment identities across sources.
                     title=title_for(candidate['title']) if ASSESS.search(candidate['title']) else candidate['title']
                     if candidate['title']=='Recurring pop quizzes':title=candidate['title']

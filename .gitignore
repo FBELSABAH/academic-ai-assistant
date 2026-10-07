@@ -19,3 +19,8 @@ __pycache__/
 .DS_Store
 .runtime/
 **/browser/
+
+# Project-local frontend tooling and private browser evidence
+node_modules/
+.playwright-cli/
+.playwright/artifacts/

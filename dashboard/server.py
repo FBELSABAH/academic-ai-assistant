@@ -11,6 +11,7 @@ from assessments import feed
 from chat_service import ChatService
 from sync_service import SyncService
 import moodle_dates
+from class_schedule import class_events
 
 SYNC = SyncService()
 TOKEN = secrets.token_urlsafe(32)
@@ -22,12 +23,16 @@ LIBRARY = Path('/Users/fbelsabah/Documents/academic-ai-assistant/data/library')
 COURSES = [('27355','CS 2520','Computer Organization & Architecture','Systems, circuits & computation','coral'),('27974','STAT 2910','Probability & Mathematical Statistics I','Probability, distributions & inference','blue'),('27973','STAT 2240','Applied Regression Analysis','Models, relationships & prediction','purple'),('27641','MATH 2420','Combinatorics I','Counting, proofs & graphs','gold'),('27151','AMS 1910','Introduction to Data Science','Data, exploration & discovery','green')]
 CALENDAR_ROOT = Path('/Users/fbelsabah/Documents/academic-ai-assistant/data/calendar')
 MOODLE_DATES = CALENDAR_ROOT/'moodle.json'
-def calendar_feed():
+
+def calendar_feed(include_classes=False):
     documents = CHAT.overlay(feed(LIBRARY, ROOT/'.runtime'))
     snapshot = json.loads(MOODLE_DATES.read_text()) if MOODLE_DATES.exists() else {}
-    return moodle_dates.merge(documents, snapshot)
+    result = moodle_dates.merge(documents, snapshot)
+    if include_classes:
+        result["events"] += class_events(CALENDAR_ROOT/"classes.json", LIBRARY)
+    return result
 
-CALENDAR = CalendarService(CALENDAR_ROOT, calendar_feed, PORT,
+CALENDAR = CalendarService(CALENDAR_ROOT, lambda: calendar_feed(True), PORT,
     refresh_source=lambda: moodle_dates.refresh(MOODLE_DATES, library()))
 SYNC.on_complete = CALENDAR.start
 
@@ -74,24 +79,6 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 self.json_response({'error': 'Calendar request failed. Retry from the dashboard.'},500)
             return
-        if self.path=='/api/chat':
-            try:
-                length=int(self.headers.get('Content-Length','0'))
-                if not 0<length<=4096:
-                    self.json_response({'message':'Request too large or empty.'},400);return
-                payload=json.loads(self.rfile.read(length))
-                if not isinstance(payload,dict) or any(not isinstance(v,(str,bool)) for v in payload.values()):
-                    self.json_response({'message':'Invalid chat request.'},400);return
-                result=CHAT.handle(payload,feed(LIBRARY,ROOT/'.runtime'),library())
-                if result.get('changed'):
-                    CALENDAR.start()
-                if result.get('action')=='sync':
-                    started=SYNC.start()
-                    result={'message':'Moodle update started. Follow progress in the dashboard.' if started else 'An update is already running.'}
-                self.json_response(result)
-            except Exception:
-                self.json_response({'message':'That request could not complete. Please refresh the dashboard and check the item before retrying.'},500)
-            return
         if self.path not in ('/api/sync', '/api/reconnect'):
             self.send_error(404); return
         started=SYNC.start(reconnect=self.path=='/api/reconnect')
@@ -116,12 +103,12 @@ class Handler(BaseHTTPRequestHandler):
             self.json_response(CALENDAR.status()); return
         if u.path=='/api/calendar/preview':
             try:
-                self.json_response(preview(calendar_feed()['events']))
+                self.json_response(preview(calendar_feed(True)['events']))
             except Exception:
                 self.json_response({'error':'Could not prepare assessment preview. Try again after updating Moodle.'},500)
             return
         if u.path=='/api/status':
-            self.json_response(dict(SYNC.snapshot(), token=TOKEN, app='academic-assistant', version=11)); return
+            self.json_response(dict(SYNC.snapshot(), token=TOKEN, app='academic-assistant', version=17)); return
         if u.path=='/api/assessments':
             try:
                 self.json_response(calendar_feed())
@@ -148,8 +135,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_error(403); return
         elif u.path in ('/','/index.html'):
             path=ROOT/'index.html'
-        elif u.path=='/calendar.js':
-            path=ROOT/'calendar.js'
+        elif u.path in ('/calendar.js',):
+            path=ROOT/u.path.lstrip('/')
         else:
             self.send_error(404); return
         if not path.is_file():

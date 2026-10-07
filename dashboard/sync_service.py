@@ -34,6 +34,13 @@ def changed_files(before, after):
         kind = 'new' if previous is None else 'changed' if previous['sha256'] != item['sha256'] else None
         if kind:
             changes.append({'kind': kind, 'name': Path(item['path']).name, 'source': url, 'sha256': item['sha256']})
+    for url, item in after.get('pages', {}).items():
+        if item.get('source_type') != 'announcement' or not item.get('verified_in_last_run'):
+            continue
+        previous = before.get('pages', {}).get(url)
+        kind = 'new' if previous is None else 'changed' if previous.get('sha256') != item['sha256'] else None
+        if kind:
+            changes.append({'kind':kind, 'name':'Announcement: '+item['title'], 'source':url, 'sha256':item['sha256']})
     return changes
 
 
@@ -164,7 +171,7 @@ class SyncService:
                 results.append(result)
                 self.update(courses=results, changes=changes, completed=len(results))
             failed = sum(c['status'] != 'complete' for c in results)
-            self.update(status='partial' if failed else 'complete', message=f'{len(results)-failed} of {len(results)} courses updated. {len(changes)} new or changed files.' + (f' {failed} course(s) need another attempt.' if failed else ''), finished_at=now(), current_course=None)
+            self.update(status='partial' if failed else 'complete', message=f'{len(results)-failed} of {len(results)} courses updated. {len(changes)} new or changed files/announcements.' + (f' {failed} course(s) need another attempt.' if failed else ''), finished_at=now(), current_course=None)
             report = ['University Courses dashboard update — '+now(), self.snapshot()['message']]
             report += [f"{c['name']}: {c['status']}; {c.get('verified',0)} files verified" for c in results]
             report += ['External/interactive activities are recorded in each internal course manifest; they are not downloaded.', 'Your own files and previous versions are preserved.']
