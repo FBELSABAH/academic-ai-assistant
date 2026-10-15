@@ -14,14 +14,37 @@ body.sidebar-closed #sidebarContents{opacity:0;transform:translateX(-12px);visib
 main{margin-left:var(--sidebar-width);transition:margin-left var(--slide-time) var(--slide-ease);max-width:none}
 body.sidebar-closed main{margin-left:var(--rail-width)}
 header{position:sticky;top:0;z-index:20;background:var(--paper);justify-content:flex-start;gap:14px;min-height:48px;padding:10px 0 16px}
-#sidebarToggle{display:grid;place-items:center;width:38px;height:38px;margin-left:11px;border:0;border-radius:9px;background:transparent;color:var(--ink);padding:0;flex-shrink:0;transition:background 150ms}
+#sidebarToggle{display:grid;place-items:center;width:38px;height:38px;margin-left:auto;margin-right:10px;border:0;border-radius:9px;background:transparent;color:var(--ink);padding:0;flex-shrink:0;transition:background 150ms}
 #sidebarToggle:hover{background:#e6ede4}.stat-link{text-align:left;color:inherit}.stat-link:hover{border-color:#a8c1af}.stat-link label{cursor:pointer}.library-search{width:min(420px,100%);margin-bottom:18px}
 #sidebarBackdrop{display:none}
 @media(max-width:1000px){:root{--sidebar-width:210px}}
 @media(max-width:650px){:root{--sidebar-width:260px}main,body.sidebar-closed main{margin-left:var(--rail-width);padding:18px}aside#sidebar{padding:18px 0}#sidebarContents .semester,#sidebarContents .side-label,#sidebarContents #sideCourses{display:block}#sidebar nav{display:block}#sidebar nav button{width:100%;font-size:14px;padding:13px 14px}.intro{align-items:flex-start;flex-wrap:wrap}.intro h1{font-size:27px}.intro p{font-size:12px}.intro .primary{white-space:nowrap;padding:12px;font-size:12px}.eyebrow{font-size:9px}#sidebarBackdrop{display:block;position:fixed;inset:0;z-index:30;border:0;background:#203a3640;opacity:1;visibility:visible;transition:opacity var(--slide-time),visibility var(--slide-time)}body.sidebar-closed #sidebarBackdrop{opacity:0;visibility:hidden;pointer-events:none}.stats{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){aside#sidebar,#sidebarContents,main,#sidebarBackdrop{transition:none}}
+</style><link rel="stylesheet" href="/study_ai.css"><style>
+.course-actions{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:0 0 24px}
+.course-actions button{min-height:44px}.folder-feedback{font-size:12px;color:var(--muted)}
+.sync-track{height:7px;margin-top:14px;background:var(--line);border-radius:8px;overflow:hidden}
+.sync-track span{display:block;height:100%;background:var(--green);transform-origin:left;transition:transform 700ms cubic-bezier(.2,.7,.2,1)}
+.sync-track.indeterminate span{width:35%;animation:sync-sweep 1.5s ease-in-out infinite;transition:none}
+@keyframes sync-sweep{from{transform:translateX(-110%)}to{transform:translateX(390%)}}
+@media(prefers-reduced-motion:reduce){.sync-track span{transition:none}.sync-track.indeterminate span{animation:none;transform:none;width:100%;opacity:.5}}
+</style><style>
+aside#sidebar{padding-top:16px;padding-bottom:16px}
+.sidebar-head{position:relative;display:flex;align-items:center;min-height:44px;flex-shrink:0}
+.sidebar-head .brand{position:absolute;left:14px;gap:8px;font-size:16px;white-space:nowrap;transition:opacity 140ms ease,transform var(--slide-time) var(--slide-ease)}
+.sidebar-head .logo{display:grid;place-items:center;width:32px;height:34px;border-radius:9px;padding:0;font-size:22px;flex-shrink:0}
+#sidebarToggle{width:44px;height:44px;margin-right:8px;position:relative;z-index:1}
+body.sidebar-closed .sidebar-head .brand{opacity:0;visibility:hidden;transform:translateX(-12px)}
+#sidebarContents{padding:20px 12px 8px}
+#sidebar nav{margin:0;display:block}
+#sidebar nav button{min-height:46px;font-size:14px;padding:12px;margin:2px 0}
+#sidebar .side-label{margin:24px 12px 10px;font-size:10px}
+#sidebar .side-course{min-height:44px;font-size:14px;padding:12px;border-radius:8px;margin:2px 0;transition:background-color 140ms ease,color 140ms ease}
+#sidebar .side-course:hover,#sidebar nav button:hover{background:#f2f5ef;color:var(--ink)}
+#sidebar .side-course.active,#sidebar nav button.active{background:#eaf2eb;color:#245a46;font-weight:600}
+@media(prefers-reduced-motion:reduce){.sidebar-head .brand,#sidebar .side-course{transition:none}}
 </style></head><body>
-<aside id="sidebar" aria-label="Main navigation"><button id="sidebarToggle" aria-label="Hide navigation" aria-expanded="true" aria-controls="sidebar" title="Toggle navigation"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button><div id="sidebarContents"><div class="brand"><span class="logo">a.</span><div>Academic</div></div><div class="semester">Fall 2026 <span>UPEI</span></div><nav><button class="active" data-nav="overview"><span>▦</span>Overview</button><button data-nav="courses"><span>▤</span>My courses</button><button data-nav="calendar"><span>▦</span>Calendar</button><button data-nav="library"><span>▱</span>File library</button></nav><div class="side-label">YOUR COURSES</div><div id="sideCourses"></div></div></aside>
+<aside id="sidebar" aria-label="Main navigation"><div class="sidebar-head"><div class="brand"><span class="logo">a.</span><div>Academic</div></div><button id="sidebarToggle" aria-label="Hide navigation" aria-expanded="true" aria-controls="sidebar" title="Toggle navigation"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button></div><div id="sidebarContents"><nav><button class="active" data-nav="overview"><span>▦</span>Overview</button><button data-nav="courses"><span>▤</span>My courses</button><button data-nav="calendar"><span>▦</span>Calendar</button><button data-nav="study"><span>✧</span>Study</button><button data-nav="library"><span>▱</span>File library</button></nav><div class="side-label">YOUR COURSES</div><div id="sideCourses"></div></div></aside>
 <button id="sidebarBackdrop" aria-label="Close navigation" tabindex="-1"></button><main><header><div class="breadcrumb"><b id="crumb">Overview</b></div></header><div id="content"></div></main><dialog id="dialog"><h2 id="dialogTitle"></h2><div id="dialogBody"></div><button class="primary" onclick="document.getElementById('dialog').close()">Got it</button></dialog>
 <script>
 const sidebar=document.getElementById('sidebar'),sidebarToggle=document.getElementById('sidebarToggle');
@@ -50,11 +73,29 @@ function render(){document.querySelectorAll('[data-nav]').forEach(b=>b.classList
 if(view==='overview'){document.getElementById('crumb').textContent='Overview';content=`<div class="intro"><div><div class="eyebrow">YOUR FALL SEMESTER, AT A GLANCE</div><h1>A clearer week ahead.</h1><p>Everything you need to find your next step.</p></div><button class="primary" onclick="startUpdate(false)">Update Moodle</button></div><div class="stats"><button class="stat stat-link" onclick="navigate('courses')"><label>Your semester</label><strong>${courses.length} courses</strong><small>Fall 2026 · University of PEI</small></button><button class="stat stat-link" onclick="navigate('library')"><label>Ready to open</label><strong>${n} files</strong><small>Saved in your course library</small></button><div class="stat"><label>Last Moodle check</label><strong id="updateStatus">Loading…</strong><small id="lastChecked"></small></div></div><section id="syncPanel" class="sync-panel" hidden></section><div class="columns"><section class="card" id="assessmentsPanel"><h2>Upcoming dates</h2><p>Loading…</p></section><section class="card" id="changesPanel"></section></div>`}
 
 else if(view==='courses'){document.getElementById('crumb').textContent='My courses';content=`<div class="intro"><div><h1>Courses</h1></div></div>${courseCards()}`}
-else if(view==='course'){let c=courses.find(c=>c.id===selected);document.getElementById('crumb').textContent=c.code;content=`<div class="intro"><div><button class="textbutton back" onclick="navigate('courses')">← All courses</button><div class="eyebrow">${c.code} · FALL 2026</div><h1>${c.name}</h1><p>${c.files.length} downloaded files</p></div></div><a href="${esc(c.url)}" target="_blank" rel="noopener">Open course in Moodle ↗</a><div class="card files"><h2>Course materials</h2>${fileRows(c.files.map(f=>({c,f})))}</div>`}
+else if(view==='course'){let c=courses.find(c=>c.id===selected);document.getElementById('crumb').textContent=c.code;content=`<div class="intro"><div><button class="textbutton back" onclick="navigate('courses')">← All courses</button><div class="eyebrow">${c.code} · FALL 2026</div><h1>${c.name}</h1><p>${c.files.length} downloaded files</p></div></div><div class="course-actions"><button class="primary" onclick="openCourseFolder('${c.id}',this)">Open course folder</button><a href="${esc(c.url)}" target="_blank" rel="noopener">Open course in Moodle ↗</a><span role="status" class="folder-feedback"></span></div><div class="card files"><h2>Course materials</h2>${fileRows(c.files.map(f=>({c,f})))}</div>`}
 else{document.getElementById('crumb').textContent='File library';const query=fileQuery.toLowerCase();content=`<div class="intro"><div><h1>Files</h1></div></div><input class="search library-search" type="search" aria-label="Search course files" placeholder="Search filenames or courses" value="${esc(fileQuery)}" oninput="filterFiles(this.value)"><div class="card" id="fileResults">${fileRows(allFiles().filter(({c,f})=>(c.code+' '+c.name+' '+f.name+' '+f.title).toLowerCase().includes(query)))}</div>`}
 document.getElementById('content').innerHTML=content}
-function navigate(v){view=v;fileQuery='';render();window.scrollTo(0,0)}function showCourse(id){selected=id;view='course';render();window.scrollTo(0,0)}
-async function load(){let r=await fetch('/api/library');if(!r.ok)throw Error('Unable to read library');courses=await r.json();document.getElementById('sideCourses').innerHTML=courses.map(c=>`<button class="side-course ${c.color}" onclick="showCourse('${c.id}')"><span class="dot"></span>${c.code}</button>`).join('');render()}
+function navigate(v){view=v;fileQuery='';render();animatePage();window.scrollTo(0,0)}function showCourse(id){selected=id;view='course';render();animatePage();window.scrollTo(0,0)}
+function animatePage(){
+ const content=document.getElementById('content');
+ content.getAnimations().forEach(animation=>animation.cancel());
+ if(!matchMedia('(prefers-reduced-motion: reduce)').matches)
+  content.animate([{opacity:.55,transform:'translateY(6px)'},{opacity:1,transform:'translateY(0)'}],{duration:180,easing:'cubic-bezier(.2,.7,.2,1)'});
+}
+async function openCourseFolder(id,button){
+ const feedback=button.parentElement.querySelector('.folder-feedback');
+ button.disabled=true;feedback.textContent='';
+ try{
+  if(!dashboardToken)await status();
+  const response=await fetch('/api/course-folder/'+encodeURIComponent(id),{method:'POST',headers:{'X-Dashboard-Token':dashboardToken}});
+  if(response.status===404)throw Error('Reopen Academic Assistant.app to enable folder access.');
+  const result=await response.json();if(!response.ok)throw Error(result.error||'Could not open folder.');
+  feedback.textContent='Opened in Finder';
+ }catch(error){feedback.textContent=error.message}
+ finally{button.disabled=false}
+}
+async function load(){let r=await fetch('/api/library');if(!r.ok)throw Error('Unable to read library');courses=await r.json();document.getElementById('sideCourses').innerHTML=courses.map(c=>`<button class="side-course ${c.color}" data-course="${c.id}" onclick="showCourse('${c.id}')"><span class="dot"></span>${c.code}</button>`).join('');render()}
 document.querySelectorAll('[data-nav]').forEach(b=>b.onclick=()=>navigate(b.dataset.nav));load().catch(()=>{document.getElementById('content').innerHTML='<div class="empty">Could not load your saved library. Reopen Academic Assistant to try again.</div>'});
 </script>
 <style>.sync-panel{border:1px solid var(--line);background:white;border-radius:12px;padding:20px;margin:0 0 24px}.sync-panel progress{width:100%;height:7px;accent-color:var(--green);margin-top:14px}.sync-panel p{font-size:12px}.sync-panel .actions{display:flex;gap:16px;align-items:center;margin-top:12px}.sync-panel ul{padding-left:18px;font-size:12px;line-height:1.8;color:var(--muted)}button:disabled{opacity:.6;cursor:wait}.change-item{padding:9px 0;border-top:1px solid var(--line);font-size:12px}.change-item small{display:block;color:var(--muted);margin-top:4px}</style>
@@ -72,14 +113,27 @@ function decorate(){
  const updateLabel=document.getElementById('updateStatus');if(updateLabel)updateLabel.textContent=active?'Updating…':failed?'Needs attention':syncState.status==='complete'?'Complete':'Ready';
  const panel=document.getElementById('syncPanel');if(!panel)return;
  panel.hidden=!active&&!failed;
- panel.innerHTML=`<p role="status">${esc(syncState.message||'Checking courses…')}</p>${active?`<progress ${syncState.total?`value="${syncState.completed||0}" max="${syncState.total}"`:''}></progress>`:''}${failed?`<button class="textbutton" onclick="startUpdate(${syncState.status==='login_required'})">${syncState.status==='login_required'?'Sign in to Moodle':'Retry update'}</button><details><summary>Update details</summary><ul>${(syncState.courses||[]).map(c=>`<li>${esc(c.name)} · ${esc(c.status)}</li>`).join('')}</ul></details>`:''}`;
+ if(active){
+  delete panel.dataset.failure;
+  if(!panel.querySelector('.sync-track'))panel.innerHTML='<p role="status"></p><div class="sync-track" role="progressbar" aria-label="Moodle course update"><span></span></div>';
+  panel.querySelector('p').textContent=syncState.message||'Checking courses…';
+  const track=panel.querySelector('.sync-track');
+  const total=Number(syncState.total)||0,done=Math.min(total,Math.max(0,Number(syncState.completed)||0));
+  track.classList.toggle('indeterminate',!total);
+  if(total){track.setAttribute('aria-valuemin','0');track.setAttribute('aria-valuemax',total);track.setAttribute('aria-valuenow',done);track.setAttribute('aria-valuetext',`${done} of ${total} courses checked`);track.firstElementChild.style.transform=`scaleX(${done/total})`}
+  else{['aria-valuemin','aria-valuemax','aria-valuenow','aria-valuetext'].forEach(name=>track.removeAttribute(name));track.firstElementChild.style.transform=''}
+ }else if(failed){
+  const signature=JSON.stringify(syncState);
+  if(panel.dataset.failure!==signature){panel.dataset.failure=signature;panel.innerHTML=`<p role="status">${esc(syncState.message||'Update needs attention')}</p><button class="textbutton" onclick="startUpdate(${syncState.status==='login_required'})">${syncState.status==='login_required'?'Sign in to Moodle':'Retry update'}</button><details><summary>Update details</summary><ul>${(syncState.courses||[]).map(c=>`<li>${esc(c.name)} · ${esc(c.status)}</li>`).join('')}</ul></details>`}
+ }else{panel.replaceChildren();delete panel.dataset.failure}
+
  const changes=document.getElementById('changesPanel');if(!changes)return;
  const history=(syncState.change_history||syncState.changes||[]).slice().reverse();
  const row=c=>`<div class="change-item"><span class="tag">${c.kind==='new'?'New':'Updated'}</span> ${esc(c.name)}${c.source?.startsWith('https://moodle31.upei.ca/')?` <a href="${esc(c.source)}" target="_blank" rel="noopener" aria-label="Open ${esc(c.name)} in Moodle">↗</a>`:''}<small>${esc(courses.find(course=>course.id===c.course_id)?.code||c.course)}${c.observed_at?' · Found '+esc(dateLabel(c.observed_at)):''}</small></div>`;
  const signature=JSON.stringify([history,syncState.status,syncState.changes?.length]);
  if(changes.dataset.signature!==signature){changes.dataset.signature=signature;changes.innerHTML='<div class="section-title"><h2>Recent changes</h2></div>'+(!active&&syncState.status==='complete'&&!syncState.changes?.length?'<p class="change-note">No new changes in the last check.</p>':'')+(history.length?history.slice(0,5).map(row).join('')+(history.length>5?`<details class="coverage"><summary>Earlier changes (${history.length-5})</summary>${history.slice(5).map(row).join('')}</details>`:''):'<p>No changes yet.</p>')}
 }
-async function status(){if(polling)return;polling=true;try{const r=await fetch('/api/status');if(!r.ok)throw Error('status');const next=await r.json();const finished=['running','connecting'].includes(syncState.status)&&!['running','connecting'].includes(next.status);syncState=next;dashboardToken=next.token;decorate();if(finished)await load()}catch(e){const p=document.getElementById('syncPanel');if(p)p.innerHTML='<h2>Dashboard disconnected</h2><p>Reopen Academic Assistant using its launcher, then reload this page. Saved files are safe.</p>'}finally{polling=false}}
+async function status(){if(polling)return;polling=true;try{const r=await fetch('/api/status');if(!r.ok)throw Error('status');const next=await r.json();const finished=['running','connecting'].includes(syncState.status)&&!['running','connecting'].includes(next.status);syncState=next;dashboardToken=next.token;decorate();if(finished)await load()}catch(e){const p=document.getElementById('syncPanel');if(p){p.hidden=false;p.innerHTML='<h2>Dashboard disconnected</h2><p>Reopen Academic Assistant using its launcher, then reload this page. Saved files are safe.</p>'}}finally{polling=false}}
 async function startUpdate(reconnect){try{if(!dashboardToken)await status();const r=await fetch(reconnect?'/api/reconnect':'/api/sync',{method:'POST',headers:{'X-Dashboard-Token':dashboardToken}});if(![202,409].includes(r.status))throw Error('start');syncState=await r.json();decorate()}catch(e){modal('Could not start update','<p>Reload this page and try again. If it still cannot connect, reopen the app using its launcher.</p>')}}
 status();setInterval(status,2000);
 </script>
@@ -112,4 +166,21 @@ async function loadAssessments(){if(assessmentBusy)return;assessmentBusy=true;tr
 loadAssessments();setInterval(()=>{if(!['running','connecting'].includes(syncState.status)&&syncState.finished_at!==assessmentSync){assessmentSync=syncState.finished_at;loadAssessments()}},3000);
 </script>
 <script src="/calendar.js"></script>
-</body></html>
+<script src="/study_ai.js"></script>
+<script>
+function updateSidebarSelection(){
+ document.querySelectorAll('[data-nav]').forEach(button=>{
+  const exact=button.dataset.nav===view;
+  button.classList.toggle('active',exact||(view==='course'&&button.dataset.nav==='courses'));
+  if(exact)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
+ });
+ document.querySelectorAll('[data-course]').forEach(button=>{
+  const active=view==='course'&&button.dataset.course===String(selected);
+  button.classList.toggle('active',active);
+  if(active)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
+ });
+}
+const renderBeforeSidebarSelection=render;
+render=function(){renderBeforeSidebarSelection();updateSidebarSelection()};
+updateSidebarSelection();
+</script></body></html>

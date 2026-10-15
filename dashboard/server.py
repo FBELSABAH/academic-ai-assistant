@@ -6,6 +6,9 @@ import mimetypes
 import secrets
 import os
 import html
+from course_folders import open_course_folder
+from chatgpt_connection import ChatGPTConnection, StudyError
+from study_ai import StudyAI
 from calendar_service import CalendarService, CalendarError, preview
 from assessments import feed
 from chat_service import ChatService
@@ -23,6 +26,8 @@ LIBRARY = Path('/Users/fbelsabah/Documents/academic-ai-assistant/data/library')
 COURSES = [('27355','CS 2520','Computer Organization & Architecture','Systems, circuits & computation','coral'),('27974','STAT 2910','Probability & Mathematical Statistics I','Probability, distributions & inference','blue'),('27973','STAT 2240','Applied Regression Analysis','Models, relationships & prediction','purple'),('27641','MATH 2420','Combinatorics I','Counting, proofs & graphs','gold'),('27151','AMS 1910','Introduction to Data Science','Data, exploration & discovery','green')]
 CALENDAR_ROOT = Path('/Users/fbelsabah/Documents/academic-ai-assistant/data/calendar')
 MOODLE_DATES = CALENDAR_ROOT/'moodle.json'
+STUDY_CONNECTION = ChatGPTConnection(ROOT/'.runtime'/'chatgpt', PORT)
+STUDY_AI = StudyAI(LIBRARY, ROOT/'.runtime'/'study-ai', STUDY_CONNECTION)
 
 def calendar_feed(include_classes=False):
     documents = CHAT.overlay(feed(LIBRARY, ROOT/'.runtime'))
@@ -50,7 +55,7 @@ def library():
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         # OAuth authorization codes must never be written to the server log.
-        if urlparse(self.path).path != '/oauth/google/callback':
+        if not urlparse(self.path).path.startswith('/oauth/'):
             super().log_message(format, *args)
 
     def trusted(self):
@@ -63,6 +68,38 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.trusted() or self.headers.get('Origin') not in (f'http://127.0.0.1:{PORT}',f'http://localhost:{PORT}') or not secrets.compare_digest(self.headers.get('X-Dashboard-Token',''), TOKEN):
             self.send_error(403); return
+        if self.path.startswith('/api/course-folder/'):
+            try:
+                cid = self.path.rsplit('/', 1)[-1]
+                if cid not in {course[0] for course in COURSES}:
+                    raise ValueError('Unknown course.')
+                open_course_folder(cid, LIBRARY.parent/'course-export-state', Path.home()/'Documents'/'University Courses'/'Fall 2026')
+                self.json_response({'opened': True})
+            except (ValueError, OSError) as exc:
+                self.json_response({'error': str(exc)}, 400)
+            return
+        if self.path.startswith('/api/study/'):
+            try:
+                size = int(self.headers.get('Content-Length', '0'))
+                if size < 0 or size > 20000:
+                    self.send_error(413); return
+                body = json.loads(self.rfile.read(size) or b'{}')
+                if not isinstance(body, dict):
+                    raise StudyError('Invalid request.')
+                action = self.path.rsplit('/', 1)[-1]
+                if action == 'connect':
+                    self.json_response({'url': STUDY_CONNECTION.authorize(body.get('account'))})
+                elif action == 'disconnect':
+                    self.json_response(STUDY_CONNECTION.disconnect())
+                elif action == 'ask':
+                    self.json_response(STUDY_AI.ask(body.get('question'), body.get('sources'), body.get('model'), body.get('mode', 'study')))
+                else:
+                    self.send_error(404)
+            except (StudyError, ValueError) as exc:
+                self.json_response({'error': str(exc) if isinstance(exc, StudyError) else 'Invalid study request.'}, 400)
+            except Exception:
+                self.json_response({'error': 'Study request failed. Your saved files and calendar are unchanged.'}, 500)
+            return
         if self.path.startswith('/api/calendar/'):
             try:
                 action = self.path.rsplit('/',1)[-1]
@@ -88,6 +125,30 @@ class Handler(BaseHTTPRequestHandler):
         if not self.trusted():
             self.send_error(403); return
         u=urlparse(self.path)
+        if u.path == '/oauth/chatgpt/callback':
+            try:
+                STUDY_CONNECTION.callback(parse_qs(u.query))
+                message = 'ChatGPT connected. Return to Study and choose a model to test your course materials.'
+                code = 200
+            except StudyError as exc:
+                message, code = str(exc), 400
+            except Exception:
+                message, code = 'ChatGPT sign-in could not finish. Try again from Study.', 500
+            payload = ('<!doctype html><meta charset="utf-8"><title>Academic Assistant</title><h1>ChatGPT connection</h1><p>'+html.escape(message)+'</p><a href="/#study">Return to Study</a>').encode()
+            self.send_response(code); self.send_header('Content-Type','text/html; charset=utf-8'); self.send_header('Cache-Control','no-store'); self.send_header('Referrer-Policy','no-referrer'); self.end_headers(); self.wfile.write(payload); return
+        if u.path.startswith('/api/study/'):
+            try:
+                action = u.path.rsplit('/',1)[-1]
+                if action == 'status': self.json_response(STUDY_CONNECTION.status())
+                elif action == 'sources': self.json_response(STUDY_AI.catalog())
+                elif action == 'models': self.json_response(STUDY_CONNECTION.models())
+                elif action == 'history': self.json_response(STUDY_AI.history())
+                else: self.send_error(404)
+            except StudyError as exc:
+                self.json_response({'error': str(exc)},400)
+            except Exception:
+                self.json_response({'error': 'Study data is unavailable. Check the saved course library.'},500)
+            return
         if u.path=='/oauth/google/callback':
             try:
                 CALENDAR.callback(parse_qs(u.query))
@@ -108,7 +169,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.json_response({'error':'Could not prepare assessment preview. Try again after updating Moodle.'},500)
             return
         if u.path=='/api/status':
-            self.json_response(dict(SYNC.snapshot(), token=TOKEN, app='academic-assistant', version=17)); return
+            self.json_response(dict(SYNC.snapshot(), token=TOKEN, app='academic-assistant', version=19)); return
         if u.path=='/api/assessments':
             try:
                 self.json_response(calendar_feed())
@@ -135,7 +196,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_error(403); return
         elif u.path in ('/','/index.html'):
             path=ROOT/'index.html'
-        elif u.path in ('/calendar.js',):
+        elif u.path in ('/calendar.js', '/study_ai.js', '/study_ai.css'):
             path=ROOT/u.path.lstrip('/')
         else:
             self.send_error(404); return
