@@ -1,2 +1,2 @@
-"""academic-ai-assistant source package."""
+"""Coursewell source package."""
 

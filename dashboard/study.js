@@ -11,7 +11,7 @@ async function studyPost(action,payload){
   if(!dashboardToken)await status();
   const response=await fetch('/api/study/'+action,{method:'POST',headers:{'Content-Type':'application/json','X-Dashboard-Token':dashboardToken},body:JSON.stringify(payload)});
   const result=await response.json();
-  if(!response.ok)throw Error(result.error||'Please reopen Academic Assistant.app and retry.');
+  if(!response.ok)throw Error(result.error||'Please reopen Coursewell.app and retry.');
   return result;
 }
 function studyError(error){
@@ -64,7 +64,7 @@ function renderStudyReady(pack){
 }
 async function showStudyHistory(){
   try{
-    const r=await fetch('/api/study/packs');if(!r.ok)throw Error('Reopen Academic Assistant.app to load study packs.');
+    const r=await fetch('/api/study/packs');if(!r.ok)throw Error('Reopen Coursewell.app to load study packs.');
     const packs=await r.json();document.getElementById('studyTitle').textContent='My saved study packs';
     studyBody.innerHTML='<p class="study-note">Snapshots of the materials you selected. Prepare a new pack after updating Moodle to include newer files.</p>'+packs.map((p,i)=>`<div class="study-pack-card"><b>${esc(p.name)}</b><p class="study-note">${p.file_count} materials · ${esc(dateLabel(p.created_at))}</p><button class="textbutton" data-pack="${i}">Open pack →</button></div>`).join('')+(!packs.length?'<p>No study packs yet.</p>':'')+'<button class="primary" id="studyNew">Prepare a study pack</button>';
     studyBody.querySelectorAll('[data-pack]').forEach(b=>b.onclick=()=>renderStudyReady(packs[Number(b.dataset.pack)]));

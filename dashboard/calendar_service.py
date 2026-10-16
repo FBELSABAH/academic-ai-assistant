@@ -73,12 +73,12 @@ def event_body(event):
     day = date.fromisoformat(event['date'])
     is_class = event.get('source_type') == 'class_schedule'
     timed = event.get('start_at') and event.get('source_type') in ('moodle_calendar', 'class_schedule')
-    description = ['Academic AI Assistant', 'Exact time from Moodle calendar (America/Halifax).' if timed else 'Date only — exact deadline time has not been verified.',
+    description = ['Coursewell', 'Exact time from Moodle calendar (America/Halifax).' if timed else 'Date only — exact deadline time has not been verified.',
                    'Confirmed by you.' if event.get('confirmed_by_user') else 'Extracted from saved course materials. Check the source for instructions.']
     if is_class:
         if not event.get('end_at'):
             raise CalendarError('Class end time has not been confirmed.')
-        description = ['Academic AI Assistant', 'Regular class time from your course outline (America/Halifax).', event.get('schedule_note', '')]
+        description = ['Coursewell', 'Regular class time from your course outline (America/Halifax).', event.get('schedule_note', '')]
     for source in event.get('sources', [])[:5]:
         description.append('\n' + source.get('name', '') + (f" · page {source['page']}" if source.get('page') else ''))
         description.append(source.get('evidence', '')[:1000])
@@ -357,7 +357,7 @@ class CalendarService:
             self.save()
             try:
                 code, calendar = self.api('POST', 'calendars', {'summary': CALENDAR_NAME, 'timeZone': 'America/Halifax',
-                                          'description': 'Assessment dates managed by Academic AI Assistant. Moodle calendar times are exact; document-only dates are all-day.'})
+                                          'description': 'Assessment dates managed by Coursewell. Moodle calendar times are exact; document-only dates are all-day.'})
             except GoogleError as exc:
                 if exc.status < 500:
                     self.state['creation_pending'] = False

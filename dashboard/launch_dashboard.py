@@ -16,7 +16,7 @@ def ready():
     try:
         with urlopen(URL+'/api/status', timeout=1) as response:
             data=json.load(response)
-        return data.get('app') == 'academic-assistant' and data.get('version') == 19
+        return data.get('app') == 'academic-assistant' and data.get('version') == 20
     except Exception:
         return False
 
@@ -27,7 +27,7 @@ def main():
         # API identity and its working directory. Never kill an active update.
         try:
             with urlopen(URL+'/api/status',timeout=1) as response:old=json.load(response)
-            if old.get('app')=='academic-assistant' and old.get('version',0)<19:
+            if old.get('app')=='academic-assistant' and old.get('version',0)<20:
                 if old.get('status') in ('running','connecting'):
                     subprocess.run(['/usr/bin/open','-a','Google Chrome',URL],check=True)
                     return 0
@@ -48,7 +48,7 @@ def main():
                 break
             time.sleep(.25)
         else:
-            subprocess.run(['/usr/bin/osascript','-e','display alert "Academic Assistant could not start" message "Please reopen the app. If it still fails, share the error with your assistant. Your course files are safe."'],check=False)
+            subprocess.run(['/usr/bin/osascript','-e','display alert "Coursewell could not start" message "Please reopen the app. If it still fails, share the error with your assistant. Your course files are safe."'],check=False)
             return 1
     # Explicitly target regular Chrome; the system URL handler may point to
     # the separate testing browser used for Moodle authentication.

@@ -118,7 +118,7 @@ class SyncService:
             self.update(status='login_required', message='Sign-in was not completed. Click Reconnect Moodle and finish verification in the browser.', finished_at=now())
         except Exception as exc:
             # Never expose exception strings: remote exceptions can include session tokens.
-            self.update(status='error', message=('The sign-in browser could not open. Open Academic Assistant.app on your Mac and retry.' if self.snapshot().get('status') == 'connecting' else 'Update could not finish. Check your connection and retry. Existing files are safe.'), error_type=type(exc).__name__, finished_at=now())
+            self.update(status='error', message=('The sign-in browser could not open. Open Coursewell.app on your Mac and retry.' if self.snapshot().get('status') == 'connecting' else 'Update could not finish. Check your connection and retry. Existing files are safe.'), error_type=type(exc).__name__, finished_at=now())
 
     def _sync(self, reconnect, state_root):
         path = _resolve_storage_state_path()

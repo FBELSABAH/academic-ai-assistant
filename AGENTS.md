@@ -1,4 +1,4 @@
-# Academic Assistant agent instructions
+# Coursewell agent instructions
 
 ## Existing application
 - This repository is the Python application with a plain HTML/CSS/JavaScript frontend in `dashboard/`. Use `.venv/bin/python` and the existing Python requirements. `tools/frontend/` is development tooling only; this is not a Node application.

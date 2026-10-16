@@ -134,7 +134,7 @@ class Handler(BaseHTTPRequestHandler):
                 message, code = str(exc), 400
             except Exception:
                 message, code = 'ChatGPT sign-in could not finish. Try again from Study.', 500
-            payload = ('<!doctype html><meta charset="utf-8"><title>Academic Assistant</title><h1>ChatGPT connection</h1><p>'+html.escape(message)+'</p><a href="/#study">Return to Study</a>').encode()
+            payload = ('<!doctype html><meta charset="utf-8"><title>Coursewell</title><h1>ChatGPT connection</h1><p>'+html.escape(message)+'</p><a href="/#study">Return to Study</a>').encode()
             self.send_response(code); self.send_header('Content-Type','text/html; charset=utf-8'); self.send_header('Cache-Control','no-store'); self.send_header('Referrer-Policy','no-referrer'); self.end_headers(); self.wfile.write(payload); return
         if u.path.startswith('/api/study/'):
             try:
@@ -158,7 +158,7 @@ class Handler(BaseHTTPRequestHandler):
                 message=str(exc);code=400
             except Exception:
                 message='Sign-in could not finish. Return to the dashboard and try again.';code=500
-            payload=('<!doctype html><meta charset="utf-8"><title>Academic Assistant</title><h1>Google Calendar</h1><p>'+html.escape(message)+'</p><a href="/">Return to dashboard</a>').encode()
+            payload=('<!doctype html><meta charset="utf-8"><title>Coursewell</title><h1>Google Calendar</h1><p>'+html.escape(message)+'</p><a href="/">Return to dashboard</a>').encode()
             self.send_response(code);self.send_header('Content-Type','text/html; charset=utf-8');self.send_header('Cache-Control','no-store');self.send_header('Referrer-Policy','no-referrer');self.end_headers();self.wfile.write(payload);return
         if u.path=='/api/calendar':
             self.json_response(CALENDAR.status()); return
@@ -169,7 +169,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.json_response({'error':'Could not prepare assessment preview. Try again after updating Moodle.'},500)
             return
         if u.path=='/api/status':
-            self.json_response(dict(SYNC.snapshot(), token=TOKEN, app='academic-assistant', version=19)); return
+            self.json_response(dict(SYNC.snapshot(), token=TOKEN, app='academic-assistant', version=20)); return
         if u.path=='/api/assessments':
             try:
                 self.json_response(calendar_feed())
@@ -196,7 +196,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_error(403); return
         elif u.path in ('/','/index.html'):
             path=ROOT/'index.html'
-        elif u.path in ('/calendar.js', '/study_ai.js', '/study_ai.css'):
+        elif u.path in ('/calendar.js', '/study_ai.js', '/study_ai.css', '/ui.css', '/ui.js', '/brand/coursewell-mark.png'):
             path=ROOT/u.path.lstrip('/')
         else:
             self.send_error(404); return
@@ -208,5 +208,5 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(chunk)
 
 if __name__=='__main__':
-    print(f'Academic Assistant: http://127.0.0.1:{PORT}',flush=True)
+    print(f'Coursewell: http://127.0.0.1:{PORT}',flush=True)
     ThreadingHTTPServer(('127.0.0.1',PORT),Handler).serve_forever()

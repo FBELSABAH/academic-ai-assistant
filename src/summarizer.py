@@ -169,7 +169,7 @@ class CourseSummarizer:
 
     def _render_rule_summary(self, facts: dict) -> str:
         lines: list[str] = []
-        lines.append("Academic Assistant Summary")
+        lines.append("Coursewell Summary")
         lines.append(f"Generated: {facts['generated_at']}")
         lines.append("")
 

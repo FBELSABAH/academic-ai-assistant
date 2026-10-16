@@ -32,7 +32,7 @@ npm --prefix tools/frontend ci --ignore-scripts
 ./scripts/playwright-cli install --skills=agents
 ```
 
-Launch the existing Academic Assistant app, then from this repository:
+Launch the existing Coursewell app, then from this repository:
 
 ```sh
 ./scripts/playwright-cli -s=frontend open http://127.0.0.1:8767

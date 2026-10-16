@@ -79,7 +79,7 @@ class ChatGPTConnection:
                       'code_challenge_method': 'S256',
                       'code_challenge': base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip('=')}
             if not account:
-                params['agent_name_hint'] = 'Academic Assistant'
+                params['agent_name_hint'] = 'Coursewell'
             elif profile.get('id_token'):
                 params['id_token_hint'] = profile['id_token']
             return AUTH+'/api/accounts/authorize?'+urlencode(params)

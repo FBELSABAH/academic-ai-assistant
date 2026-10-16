@@ -1,4 +1,6 @@
-# Academic Assistant
+# Coursewell
+
+![Coursewell](docs/brand/coursewell-social.png)
 
 A local-first academic organizer that downloads Moodle course materials, extracts assessment dates with source evidence, and synchronizes eligible deadlines and regular classes to Google Calendar.
 
@@ -99,3 +101,7 @@ Extraction is conservative, not comprehensive: scans, ambiguous announcements, c
 3. Add a simple manually selected assessment file export.
 
 These are future work, not features claimed by this release.
+
+## Branding and compatibility
+
+Coursewell was previously named Academic AI Assistant. Existing installations retain the `academic-ai-assistant` folder, saved authentication location, service identifiers, and calendar UIDs so rebranding does not invalidate sign-ins or duplicate events. Open `dashboard/Coursewell.app` on macOS; the original launcher remains compatible.

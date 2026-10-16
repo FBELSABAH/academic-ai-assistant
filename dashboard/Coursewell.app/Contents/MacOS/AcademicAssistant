@@ -1,0 +1,2 @@
+#!/bin/zsh
+exec /Users/fbelsabah/Documents/academic-ai-assistant/.venv/bin/python "${0:A:h}/../../../launch_dashboard.py"
