@@ -1,4 +1,6 @@
-# Academic AI Assistant
+# Coursewell
+
+![Coursewell](docs/brand/coursewell-social.png)
 
 > **Active Development** — independently developed since January 2026.
 

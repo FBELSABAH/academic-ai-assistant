@@ -48,7 +48,7 @@ def main():
                 break
             time.sleep(.25)
         else:
-            subprocess.run(['/usr/bin/osascript','-e','display alert "Academic Assistant could not start" message "Please reopen the app. If it still fails, share the error with your assistant. Your course files are safe."'],check=False)
+            subprocess.run(['/usr/bin/osascript','-e','display alert "Coursewell could not start" message "Please reopen the app. If it still fails, share the error with your assistant. Your course files are safe."'],check=False)
             return 1
     # Explicitly target regular Chrome; the system URL handler may point to
     # the separate testing browser used for Moodle authentication.

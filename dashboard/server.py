@@ -85,5 +85,5 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(chunk)
 
 if __name__=='__main__':
-    print(f'Academic Assistant: http://127.0.0.1:{PORT}',flush=True)
+    print(f'Coursewell: http://127.0.0.1:{PORT}',flush=True)
     ThreadingHTTPServer(('127.0.0.1',PORT),Handler).serve_forever()

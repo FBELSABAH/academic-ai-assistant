@@ -1,12 +1,12 @@
-# Academic Assistant dashboard
+# Coursewell dashboard
 
-Double-click **Academic Assistant.app** in this folder to open the app at http://127.0.0.1:8767. This starts the server in your normal Mac environment without a Terminal window. Keep the app bundle alongside its supporting files; a Finder alias can be placed elsewhere.
+Double-click **Coursewell.app** in this folder to open the app at http://127.0.0.1:8767. This starts the server in your normal Mac environment without a Terminal window. Keep the app bundle alongside its supporting files; a Finder alias can be placed elsewhere.
 
 **Update Moodle** reuses your saved session, checks Fall 2026 courses, and updates the existing library and University Courses folders. Progress, partial failures, and newly added or changed files appear in the dashboard. The app must remain running; no schedule is installed.
 
 Updates try saved Moodle authentication first. If expired, the assistant opens its persistent browser profile and follows UPEI's Microsoft sign-in link. Complete verification only when Microsoft requires it; the update resumes automatically. Reconnect Moodle also opens this profile without clearing it. Closing the browser or timing out preserves the saved session.
 
-The dedicated browser profile lives under `~/Library/Application Support/Academic Assistant/auth` (owner-only directory), separate from your everyday browser and the Documents folder. Existing saved cookies are migrated without overwriting newer browser cookies. Microsoft controls how long sign-in remains valid; a persistent profile cannot bypass MFA or university policies. No passwords are saved by the app itself. The previous localhost:8766 development server is a separate old instance; use the new app address.
+The dedicated browser profile lives under `~/Library/Application Support/Coursewell/auth` (owner-only directory), separate from your everyday browser and the Documents folder. Existing saved cookies are migrated without overwriting newer browser cookies. Microsoft controls how long sign-in remains valid; a persistent profile cannot bypass MFA or university policies. No passwords are saved by the app itself. The previous localhost:8766 development server is a separate old instance; use the new app address.
 
 The assessment feed is extracted automatically from verified saved Moodle pages and PDF, DOCX, PPTX, Markdown, and text files. Switch between This week, Next 30 days, Needs checking, and All dates; click an entry for source excerpts and file/Moodle links. Recurring pop quizzes remain visible without inventing a date. Conflicting source dates and tentative schedules are flagged. Extraction is cached by content hash; date changes are compared with the previous extraction.
 
